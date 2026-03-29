@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Users of the clinic (Doctor, Receptionist, Admin)
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  role      String   @default("Doctor") // User Roles: Admin, Doctor, Receptionist
+  createdAt DateTime @default(now())
+}
+
+// Patients visiting the clinic
+model Patient {
+  id          String   @id @default(uuid())
+  name        String
+  age         Int
+  gender      String?  // Added for completeness as seen in UI (45/M)
+  contact     String
+  address     String?  // Added as requested (addrhs)
+  medicalHist Json?    // Using JSONB support in postgres for flexible history
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  appointments  Appointment[]
+  prescriptions Prescription[]
+  bills         Billing[]
+}
+
+// Inventory management inside the clinic
+model Inventory {
+  id             String   @id @default(uuid())
+  medicineName   String
+  stockQuantity  Int
+  price          Float
+  createdAt      DateTime @default(now())
+}
+
+// Patient Appointments
+model Appointment {
+  id          String   @id @default(uuid())
+  patientId   String
+  date        DateTime
+  status      String   @default("pending") // pending, completed, cancelled
+  createdAt   DateTime @default(now())
+
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+// Prescriptions details for a specific patient
+model Prescription {
+  id          String   @id @default(uuid())
+  patientId   String
+  diagnosis   String?
+  medicines   Json     // Storing list/dosage of medicines flexibly
+  pathya      String?
+  apathya     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+// Billing/Invoices created in the Clinic
+model Billing {
+  id          String   @id @default(uuid())
+  patientId   String
+  totalAmount Float
+  paidStatus  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
