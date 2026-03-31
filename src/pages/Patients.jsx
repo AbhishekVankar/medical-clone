@@ -1,46 +1,46 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, Activity, History, Loader2 } from 'lucide-react';
+import { Search, Plus, Phone, History, Loader2, Users } from 'lucide-react';
+import { getAllPatients, searchPatients } from '../services/patientService';
 
 export default function Patients() {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [patients,    setPatients]    = useState([]);
+  const [searchTerm,  setSearchTerm]  = useState('');
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  useEffect(() => { fetchPatients(); }, []);
 
   const fetchPatients = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('http://localhost:5000/api/patients');
-      const data = await res.json();
-      if (data && data.length > 0) {
-        setPatients(data);
-      }
+      const data = await getAllPatients();
+      setPatients(data);
     } catch (err) {
-      console.error("Failed to fetch patients", err);
+      console.error('Failed to fetch patients', err);
+      setError('Could not load patient records. Check your Firebase configuration.');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredPatients = patients.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.phone.includes(searchTerm)
-  );
-
-  const viewHistory = (patientId) => {
-    navigate(`/patients/${patientId}/history`);
-  };
+  // Client-side filter (searchPatients does the same thing but against Firestore;
+  // we already have the data in memory so filter locally for instant response).
+  const filtered = patients.filter(p => {
+    const term = searchTerm.toLowerCase();
+    return (
+      p.name?.toLowerCase().includes(term) ||
+      p.contact?.toLowerCase().includes(term)
+    );
+  });
 
   return (
-    <div className="animate-fade-in" style={{ padding: '20px' }}>
-      <div className="page-header" style={{ marginBottom: '24px' }}>
+    <div className="animate-fade-in">
+      <div className="page-header">
         <div>
-          <h1 className="page-title">Patient Resources</h1>
+          <h1 className="page-title">Patient Records</h1>
           <p className="page-subtitle">Manage patient records and medical histories</p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/prescription')}>
@@ -49,62 +49,91 @@ export default function Patients() {
       </div>
 
       <div className="glass-panel">
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-          <div className="input-field" style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-muted)', paddingLeft: '16px' }}>
-            <Search size={20} color="var(--text-muted)" style={{ marginRight: '10px' }} />
-            <input 
-              type="text" 
-              placeholder="Search patients by name or phone..." 
-              style={{ background: 'none', border: 'none', color: 'var(--text-main)', width: '100%', outline: 'none', padding: '12px 0' }}
+        <div className="filter-bar">
+          <div className="search-wrapper">
+            <Search size={16} color="var(--text-muted)" />
+            <input
+              type="text"
+              placeholder="Search patients by name or phone…"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
 
+        {/* Error banner */}
+        {error && (
+          <div style={{ padding: '14px 16px', background: 'var(--danger-surface)', border: '1px solid var(--danger-border)', borderRadius: 'var(--radius-md)', color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
         <div className="table-container">
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="data-table">
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>Patient Info</th>
-                <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>Contact</th>
-                <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>Last Prescription</th>
-                <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
+                <th>Patient Info</th>
+                <th>Contact</th>
+                <th>Last Prescription</th>
+                <th>Visits</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="4">
+                  <td colSpan="5">
                     <div className="loader-container">
-                      <Loader2 className="loader-icon" size={40} />
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Opening Patient Records...</p>
+                      <Loader2 className="loader-icon" size={36} />
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Opening Patient Records…</p>
                     </div>
                   </td>
                 </tr>
-              ) : filteredPatients.length === 0 ? (
-                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '40px' }}>No patients found</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan="5">
+                    <div className="empty-state">
+                      <Users size={40} />
+                      <p>{searchTerm ? 'No patients match your search.' : 'No patients registered yet.'}</p>
+                    </div>
+                  </td>
+                </tr>
               ) : (
-                filteredPatients.map((p) => (
+                filtered.map(p => (
                   <tr key={p.id}>
-                    <td style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ fontWeight: '600' }}>{p.name}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.age} yrs • {p.gender}</div>
+                    <td>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{p.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {p.age ? `${p.age} yrs` : '—'} · {p.gender || '—'}
+                      </div>
                     </td>
-                    <td style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={14} /> {p.phone}</div>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        <Phone size={13} color="var(--text-muted)" /> {p.contact || '—'}
+                      </div>
                     </td>
-                    <td style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                      {p.prescriptions && p.prescriptions.length > 0 ? (
+                    <td>
+                      {p.lastPrescription ? (
                         <>
-                          <div style={{ fontWeight: '500' }}>{new Date(p.prescriptions[0].createdAt).toLocaleDateString()}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.prescriptions[0].diagnosis}</div>
+                          <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                            {p.lastPrescription.createdAt
+                              ? new Date(p.lastPrescription.createdAt).toLocaleDateString()
+                              : '—'}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {p.lastPrescription.diagnosis || '—'}
+                          </div>
                         </>
-                      ) : 'No history'}
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No history</span>
+                      )}
                     </td>
-                    <td style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                      <button className="btn btn-outline" style={{ fontSize: '0.8rem' }} onClick={() => viewHistory(p.id)}>
-                        <History size={15} style={{ marginRight: '6px' }} /> View History
+                    <td>
+                      <span className="badge badge-green">{p.prescriptionCount ?? 0}</span>
+                    </td>
+                    <td>
+                      <button className="btn btn-outline btn-sm" onClick={() => navigate(`/patients/${p.id}/history`)}>
+                        <History size={14} /> View History
                       </button>
                     </td>
                   </tr>

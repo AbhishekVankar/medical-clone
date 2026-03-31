@@ -1,158 +1,102 @@
 import { useState, useEffect } from 'react';
-import { FileText, Save, Send, Pill, Plus, X, Search, Loader2, Download, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
+import { Save, Send, Pill, Plus, X, Loader2, Download, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import Modal from '../components/Modal';
+import { getOrCreatePatient } from '../services/patientService';
+import { createPrescription }  from '../services/prescriptionService';
+import { getAllInventory }     from '../services/inventoryService';
 
 export default function Prescription() {
   const [loading, setLoading] = useState(false);
   const [modalConfig, setModalConfig] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    type: 'info', // info, success, warning, danger
-    onConfirm: null,
-    showConfirm: false
+    isOpen: false, title: '', message: '', type: 'info', onConfirm: null, showConfirm: false,
   });
 
   const [patientData, setPatientData] = useState({
-    name: '',
-    age: '',
-    gender: 'Male',
-    phone: '',
-    address: '',
-    diagnosis: ''
+    name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '',
   });
-  
-  const [medicines, setMedicines] = useState([
-    { id: 1, name: '', timing: '', anupan: '', days: 7 }
-  ]);
 
-  const [pathya, setPathya] = useState('');
-  const [apathya, setApathya] = useState('');
-  const [notes, setNotes] = useState('');
+  const [medicines, setMedicines]  = useState([{ id: 1, name: '', timing: '', anupan: '', days: 7 }]);
+  const [pathya,    setPathya]     = useState('');
+  const [apathya,   setApathya]   = useState('');
+  const [notes,     setNotes]     = useState('');
+  const [allMedicines, setAllMedicines] = useState([]);
 
-  const showAlert = (title, message, type = 'info') => {
-    setModalConfig({
-      isOpen: true,
-      title,
-      message,
-      type,
-      showConfirm: false,
-      onConfirm: null
-    });
-  };
+  // Pre-load the full medicine list once so the native datalist is populated
+  useEffect(() => {
+    getAllInventory()
+      .then(setAllMedicines)
+      .catch(err => {
+        console.error('Failed to load medicines for autocomplete:', err.message);
+        if (err.code === 'permission-denied') {
+          console.warn(
+            'Firestore rules are blocking reads.\n' +
+            'Go to Firebase Console → Firestore Database → Rules and set:\n' +
+            'allow read, write: if true;'
+          );
+        }
+      });
+  }, []);
 
-  const showConfirm = (title, message, onConfirm, type = 'warning') => {
-    setModalConfig({
-      isOpen: true,
-      title,
-      message,
-      type,
-      showConfirm: true,
-      onConfirm
-    });
-  };
+  // ── Modal helpers ────────────────────────────────────────────────────────
+  const showAlert   = (title, message, type = 'info') =>
+    setModalConfig({ isOpen: true, title, message, type, showConfirm: false, onConfirm: null });
+  const showConfirm = (title, message, onConfirm, type = 'warning') =>
+    setModalConfig({ isOpen: true, title, message, type, showConfirm: true, onConfirm });
+  const closeModal  = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
-  const closeModal = () => {
-    setModalConfig(prev => ({ ...prev, isOpen: false }));
-  };
-
-  const addMedicine = () => {
+  // ── Medicine row helpers ──────────────────────────────────────────────────
+  const addMedicineRow = () => {
     const newId = medicines.length > 0 ? Math.max(...medicines.map(m => m.id)) + 1 : 1;
-    setMedicines([...medicines, { id: newId, name: '', timing: '', anupan: '', days: 7 }]);
+    setMedicines(prev => [...prev, { id: newId, name: '', timing: '', anupan: '', days: 7 }]);
   };
 
-  const removeMedicine = (id) => {
-    setMedicines(medicines.filter(m => m.id !== id));
+  const removeMedicineRow = (id) => setMedicines(prev => prev.filter(m => m.id !== id));
+
+  const updateMedicineField = (id, field, value) => {
+    setMedicines(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
 
-  const [medicineSuggestions, setMedicineSuggestions] = useState({}); // { rowId: [suggestions] }
-
-  const fetchMedicineSuggestions = async (rowId, query) => {
-    if (!query || query.length < 2) {
-      setMedicineSuggestions(prev => ({ ...prev, [rowId]: [] }));
+  // ── Save ─────────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!patientData.name.trim()) {
+      showAlert('Missing Information', 'Please enter the patient name.', 'warning');
       return;
     }
-    try {
-      const res = await fetch(`http://localhost:5000/api/inventory/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setMedicineSuggestions(prev => ({ ...prev, [rowId]: data }));
-    } catch (err) {
-      console.error("Suggestions fetch failed", err);
-    }
-  };
-
-  const updateMedicine = (id, field, value) => {
-    setMedicines(medicines.map(m => m.id === id ? { ...m, [field]: value } : m));
-    if (field === 'name') {
-      fetchMedicineSuggestions(id, value);
-    }
-  };
-
-  const selectMedicine = (id, medicineName) => {
-    setMedicines(medicines.map(m => m.id === id ? { ...m, name: medicineName } : m));
-    setMedicineSuggestions(prev => ({ ...prev, [id]: [] }));
-  };
-
-  const handleSave = async () => {
-    if (!patientData.name || medicines.length === 0) {
-      showAlert("Missing Information", "Please enter patient name and at least one medicine.", "warning");
+    if (medicines.length === 0 || medicines.every(m => !m.name.trim())) {
+      showAlert('Missing Information', 'Add at least one medicine.', 'warning');
       return;
     }
 
     showConfirm(
-      "Save Prescription",
-      `Do you want to save this prescription for ${patientData.name}?`,
+      'Save Prescription',
+      `Save prescription for ${patientData.name}?`,
       async () => {
         closeModal();
         setLoading(true);
         try {
-          let patientId;
-          const searchRes = await fetch(`http://localhost:5000/api/patients/search?q=${encodeURIComponent(patientData.name)}`);
-          const searchResults = await searchRes.json();
-          
-          const existingPatient = searchResults.find(p => p.name.toLowerCase() === patientData.name.toLowerCase());
-          
-          if (existingPatient) {
-            patientId = existingPatient.id;
-          } else {
-            const newPatientRes = await fetch('http://localhost:5000/api/patients', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: patientData.name,
-                age: patientData.age,
-                contact: patientData.phone || 'Not provided',
-                gender: patientData.gender,
-                address: patientData.address
-              })
-            });
-            const newPatient = await newPatientRes.json();
-            if (newPatient.error) throw new Error(newPatient.error);
-            patientId = newPatient.id;
-          }
-
-          const response = await fetch('http://localhost:5000/api/prescriptions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              patientId,
-              diagnosis: patientData.diagnosis,
-              medicines: medicines,
-              pathya,
-              apathya,
-              notes
-            })
+          // 1. Get existing patient or create a new one (dedup by exact name)
+          const patient = await getOrCreatePatient({
+            name:    patientData.name.trim(),
+            age:     patientData.age,
+            gender:  patientData.gender,
+            contact: patientData.phone || 'Not provided',
+            address: patientData.address,
           });
 
-          if (response.ok) {
-            showAlert("Success", `Prescription saved successfully for ${patientData.name}`, "success");
-          } else {
-            const err = await response.json();
-            showAlert("Error", `Error saving prescription: ${err.error || "Unknown error"}`, "danger");
-          }
+          // 2. Save prescription (atomic transaction: writes doc + updates patient)
+          await createPrescription(patient.id, {
+            diagnosis: patientData.diagnosis,
+            medicines,
+            pathya,
+            apathya,
+            notes,
+          });
+
+          showAlert('Saved', `Prescription saved for ${patient.name}`, 'success');
         } catch (err) {
-          showAlert("Error", `Failed to process prescription: ${err.message}`, "danger");
+          console.error(err);
+          showAlert('Error', err.message || 'Failed to save prescription', 'danger');
         } finally {
           setLoading(false);
         }
@@ -160,325 +104,265 @@ export default function Prescription() {
     );
   };
 
-  const handleDownload = () => {
-    const element = document.getElementById('prescription-preview');
-    const opt = {
-      margin: 0,
-      filename: `${patientData.name}_Prescription.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2.5, 
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    
-    html2pdf().set(opt).from(element).save();
+  // ── New ──────────────────────────────────────────────────────────────────
+  const handleNew = () => {
+    showConfirm('New Prescription', 'Start a new prescription? Current data will be lost.', () => {
+      closeModal();
+      setPatientData({ name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '' });
+      setMedicines([{ id: 1, name: '', timing: '', anupan: '', days: 7 }]);
+      setPathya(''); setApathya(''); setNotes('');
+    });
   };
 
-  const handleNew = () => {
-    showConfirm(
-      "New Prescription",
-      "Are you sure you want to start a new prescription? Current data will be lost.",
-      () => {
-        closeModal();
-        setPatientData({
-          name: '',
-          age: '',
-          gender: 'Male',
-          phone: '',
-          address: '',
-          diagnosis: ''
-        });
-        setMedicines([{ id: 1, name: '', timing: '', anupan: '', days: 7 }]);
-        setPathya('');
-        setApathya('');
-        setNotes('');
-      }
-    );
+  // ── Download PDF ─────────────────────────────────────────────────────────
+  const handleDownload = () => {
+    html2pdf().set({
+      margin: 0,
+      filename: `${patientData.name || 'Prescription'}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2.5, useCORS: true, logging: false, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(document.getElementById('prescription-preview')).save();
   };
+
+  // ── Modal icon map ────────────────────────────────────────────────────────
+  const modalStyle = {
+    success: { bg: 'rgba(5,150,105,0.1)',   color: '#059669', icon: <CheckCircle size={28} /> },
+    danger:  { bg: 'rgba(220,38,38,0.1)',   color: '#dc2626', icon: <AlertCircle  size={28} /> },
+    warning: { bg: 'rgba(217,119,6,0.1)',   color: '#d97706', icon: <HelpCircle   size={28} /> },
+    info:    { bg: 'rgba(14,165,233,0.1)',  color: '#0ea5e9', icon: <AlertCircle  size={28} /> },
+  }[modalConfig.type] ?? {};
+
+  const pd = patientData;
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', gap: '24px', height: '100%' }}>
-      {/* Left panel - Prescription Builder */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div className="page-header" style={{ marginBottom: '20px' }}>
+    <div className="layout-rx animate-fade-in">
+
+      {/* ── Left: Builder ───────────────────────────────────────── */}
+      <div className="layout-rx-form">
+        <div className="page-header" style={{ marginBottom: '16px' }}>
           <div>
             <h1 className="page-title">Digital Prescription</h1>
             <p className="page-subtitle">Generate smart Ayurvedic prescriptions</p>
           </div>
-          <button className="btn btn-primary" onClick={handleNew} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Plus size={18} /> New Prescription
-          </button>
+          <button className="btn btn-primary" onClick={handleNew}><Plus size={18} /> New</button>
         </div>
 
-        <div className="glass-panel" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr', gap: '16px' }}>
+        <div className="glass-panel" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+
+          {/* Patient info – row 1 */}
+          <div className="rx-patient-grid">
+            {[
+              { label: 'Patient Name',       key: 'name',     type: 'text',   placeholder: 'Full name' },
+              { label: 'Age',                key: 'age',      type: 'number', placeholder: 'Years' },
+              { label: 'Phone (WhatsApp)',   key: 'phone',    type: 'number', placeholder: '9876543210' },
+            ].map(f => (
+              <div key={f.key} className="input-group">
+                <label className="input-label">{f.label}</label>
+                <input type={f.type} className="input-field" placeholder={f.placeholder}
+                  value={pd[f.key]} onChange={e => setPatientData({ ...pd, [f.key]: e.target.value })} />
+              </div>
+            ))}
             <div className="input-group">
-              <label className="input-label">Patient Name</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                value={patientData.name} 
-                onChange={(e) => setPatientData({...patientData, name: e.target.value})}
-              />
-            </div>
-            <div className="input-group">
-                <label className="input-label">Age</label>
-                <input 
-                  type="number" 
-                  className="input-field" 
-                  value={patientData.age}
-                  onChange={(e) => setPatientData({...patientData, age: e.target.value})}
-                />
-            </div>
-            <div className="input-group">
-                <label className="input-label">Gender</label>
-                <select 
-                  className="input-field" 
-                  value={patientData.gender}
-                  onChange={(e) => setPatientData({...patientData, gender: e.target.value})}
-                  style={{ appearance: 'auto' }}
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-            </div>
-            <div className="input-group">
-                <label className="input-label">Patient Number (WhatsApp)</label>
-                <input 
-                  type="number" 
-                  className="input-field" 
-                  placeholder="e.g. 9876543210"
-                  value={patientData.phone}
-                  onChange={(e) => setPatientData({...patientData, phone: e.target.value})}
-                />
+              <label className="input-label">Gender</label>
+              <select className="input-field" value={pd.gender}
+                onChange={e => setPatientData({ ...pd, gender: e.target.value })}>
+                <option>Male</option><option>Female</option><option>Other</option>
+              </select>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Patient info – row 2 */}
+          <div className="rx-two-col">
             <div className="input-group">
-              <label className="input-label">Address (Clinic Locality)</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="Patient's address"
-                value={patientData.address}
-                onChange={(e) => setPatientData({...patientData, address: e.target.value})}
-              />
+              <label className="input-label">Address</label>
+              <input type="text" className="input-field" placeholder="Patient's address"
+                value={pd.address} onChange={e => setPatientData({ ...pd, address: e.target.value })} />
             </div>
-             <div className="input-group">
+            <div className="input-group">
               <label className="input-label">Disease / Diagnosis</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="e.g. Amlapitta" 
-                value={patientData.diagnosis}
-                onChange={(e) => setPatientData({...patientData, diagnosis: e.target.value})}
-              />
+              <input type="text" className="input-field" placeholder="e.g. Amlapitta"
+                value={pd.diagnosis} onChange={e => setPatientData({ ...pd, diagnosis: e.target.value })} />
             </div>
           </div>
 
-          <div style={{ borderTop: 'var(--glass-border)', paddingTop: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Pill size={20} color="var(--primary)" /> Recommended Medicines</h3>
-              <button className="btn btn-secondary" style={{ padding: '6px 12px' }} onClick={addMedicine}><Plus size={16} /> Add Medicine</button>
+          {/* Medicines table */}
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
+            <div className="section-header">
+              <h3 className="section-title"><Pill size={18} color="var(--primary)" /> Recommended Medicines</h3>
+              <button className="btn btn-secondary btn-sm" onClick={addMedicineRow}>
+                <Plus size={15} /> Add Row
+              </button>
             </div>
-            
-            <table className="data-table">
-              <thead>
-                 <tr>
-                   <th style={{ width: '25%' }}>Medicine</th>
-                   <th>Timing</th>
-                   <th>Anupan</th>
-                   <th>Days</th>
-                   <th></th>
-                 </tr>
-              </thead>
-              <tbody>
-                {medicines.map((med) => (
-                  <tr key={med.id}>
-                    <td style={{ position: 'relative' }}>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        style={{ padding: '8px', background: 'var(--bg-input)' }} 
-                        value={med.name} 
-                        onChange={(e) => updateMedicine(med.id, 'name', e.target.value)} 
-                        autoComplete="off"
-                      />
-                      {medicineSuggestions[med.id] && medicineSuggestions[med.id].length > 0 && (
-                        <div className="glass-panel" style={{ 
-                          position: 'absolute', 
-                          top: '100%', 
-                          left: 0, 
-                          right: 0, 
-                          zIndex: 100, 
-                          maxHeight: '200px', 
-                          overflowY: 'auto', 
-                          padding: '4px',
-                          marginTop: '4px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                        }}>
-                           {medicineSuggestions[med.id].map((s) => (
-                            <div 
-                              key={s.id} 
-                              className="suggestion-item" 
-                              style={{ 
-                                padding: '8px 12px', 
-                                cursor: 'pointer', 
-                                borderRadius: '4px',
-                                fontSize: '0.9rem'
-                              }}
-                              onClick={() => selectMedicine(med.id, s.medicineName)}
-                              onMouseEnter={(e) => e.target.style.background = 'var(--bg-muted)'}
-                              onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                            >
-                              {s.medicineName}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td><input type="text" className="input-field" style={{ padding: '8px', background: 'var(--bg-muted)' }} value={med.timing} onChange={(e) => updateMedicine(med.id, 'timing', e.target.value)} /></td>
-                    <td><input type="text" className="input-field" style={{ padding: '8px', background: 'var(--bg-muted)' }} value={med.anupan} onChange={(e) => updateMedicine(med.id, 'anupan', e.target.value)} /></td>
-                    <td><input type="number" className="input-field" style={{ padding: '8px', background: 'var(--bg-muted)' }} value={med.days} onChange={(e) => updateMedicine(med.id, 'days', e.target.value)} /></td>
-                    <td><button className="btn" style={{ padding: '4px', color: 'var(--danger)' }} onClick={() => removeMedicine(med.id)}><X size={18} /></button></td>
+
+            {/* Native datalist — not clipped by any overflow container */}
+            <datalist id="med-suggestions">
+              {allMedicines.map(m => (
+                <option key={m.id} value={m.medicineName} />
+              ))}
+            </datalist>
+
+            <div className="table-container">
+              <table className="data-table med-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '35%' }}>Medicine</th>
+                    <th>Timing</th>
+                    <th>Anupan</th>
+                    <th style={{ width: '70px' }}>Days</th>
+                    <th style={{ width: '40px' }}></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {medicines.map(med => (
+                    <tr key={med.id}>
+                      <td data-label="Medicine">
+                        <input
+                          type="text"
+                          className="input-field"
+                          placeholder="Search medicine…"
+                          list="med-suggestions"
+                          value={med.name}
+                          onChange={e => updateMedicineField(med.id, 'name', e.target.value)}
+                        />
+                      </td>
+                      <td data-label="Timing">
+                        <input type="text" className="input-field" placeholder="e.g. BD" value={med.timing}
+                          onChange={e => updateMedicineField(med.id, 'timing', e.target.value)} />
+                      </td>
+                      <td data-label="Anupan">
+                        <input type="text" className="input-field" placeholder="e.g. Honey" value={med.anupan}
+                          onChange={e => updateMedicineField(med.id, 'anupan', e.target.value)} />
+                      </td>
+                      <td data-label="Days">
+                        <input type="number" className="input-field" value={med.days}
+                          onChange={e => updateMedicineField(med.id, 'days', e.target.value)} />
+                      </td>
+                      <td data-label="">
+                        <button className="btn btn-ghost btn-icon" style={{ color: 'var(--danger)' }}
+                          onClick={() => removeMedicineRow(med.id)}>
+                          <X size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
+          {/* Pathya / Apathya */}
+          <div className="rx-two-col">
             <div className="input-group">
               <label className="input-label">Pathya (Do's)</label>
-              <textarea className="input-field" placeholder="Dietary instructions..." rows={3} value={pathya} onChange={(e) => setPathya(e.target.value)}></textarea>
+              <textarea className="input-field" rows={3} placeholder="Dietary instructions…"
+                value={pathya} onChange={e => setPathya(e.target.value)} />
             </div>
             <div className="input-group">
               <label className="input-label">Apathya (Don'ts)</label>
-              <textarea className="input-field" placeholder="Foods to avoid..." rows={3} value={apathya} onChange={(e) => setApathya(e.target.value)}></textarea>
+              <textarea className="input-field" rows={3} placeholder="Foods to avoid…"
+                value={apathya} onChange={e => setApathya(e.target.value)} />
             </div>
           </div>
-          
-          <div className="input-group">
-             <label className="input-label">Doctor Notes</label>
-             <textarea className="input-field" rows={2} placeholder="Additional instructions..." value={notes} onChange={(e) => setNotes(e.target.value)}></textarea>
-          </div>
 
+          <div className="input-group">
+            <label className="input-label">Doctor Notes</label>
+            <textarea className="input-field" rows={2} placeholder="Additional instructions…"
+              value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
         </div>
       </div>
 
-      {/* Right panel - Live Preview & Actions */}
-      <div style={{ width: '420px', display: 'flex', flexDirection: 'column', gap: '20px' }} className="no-print">
-        <div id="prescription-preview" className="glass-panel" style={{ flex: 1, backgroundColor: 'white', color: '#111', padding: '32px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', overflowY: 'auto' }}>
-          {/* A4 Paper Look */}
-          <div style={{ borderBottom: '2px solid #10b981', paddingBottom: '16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* ── Right: Live Preview ──────────────────────────────────── */}
+      <div className="layout-rx-preview no-print">
+        <div id="prescription-preview" className="glass-panel"
+          style={{ flex: 1, background: '#fff', color: '#111', padding: '28px', overflowY: 'auto' }}>
+
+          {/* Clinic header */}
+          <div style={{ borderBottom: '2px solid #059669', paddingBottom: '14px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ color: '#10b981', margin: 0 }}>Sanjivani Clinic</h2>
-              <div style={{ fontSize: '0.9rem', color: '#333', fontWeight: 'bold' }}>Dr. Dharmesh C. Sapovadiya</div>
-              <div style={{ fontSize: '0.8rem', color: '#666' }}>Qualification: B.A.M.S.</div>
+              <h2 style={{ color: '#059669', margin: 0, fontSize: '1.1rem' }}>Sanjivani Clinic</h2>
+              <div style={{ fontSize: '0.85rem', color: '#333', fontWeight: 'bold', marginTop: '2px' }}>Dr. Dharmesh C. Sapovadiya</div>
+              <div style={{ fontSize: '0.75rem', color: '#666' }}>Qualification: B.A.M.S.</div>
             </div>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
-              SC
-            </div>
-          </div>
-          
-          <div style={{ fontSize: '0.85rem', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '4px', color: '#333' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div><strong>Name:</strong> {patientData.name || '---'}</div>
-              <div><strong>Date:</strong> {new Date().toLocaleDateString()}</div>
-            </div>
-            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-              <div><strong>Age & Gender:</strong> {patientData.age || '--'} / {patientData.gender || '--'}</div>
-              {patientData.phone && <div><strong>Mobile:</strong> {patientData.phone}</div>}
-            </div>
-            <div><strong>Address:</strong> {patientData.address || 'Not specified'}</div>
-            {patientData.diagnosis && <div style={{ marginTop: '8px', color: '#10b981' }}><strong>Diagnosis:</strong> {patientData.diagnosis}</div>}
+            <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '0.85rem' }}>SC</div>
           </div>
 
-          <h3 style={{ color: '#10b981', margin: '16px 0 8px', fontSize: '1.2rem', borderBottom: '1px solid #10b981', display: 'inline-block' }}>Advised Medicines</h3>
-          <ul style={{ paddingLeft: '20px', fontSize: '0.9rem', color: '#333', lineHeight: '1.8' }}>
-            {medicines.map((m) => (
-              <li key={m.id} style={{ marginBottom: '8px' }}>
+          {/* Patient info */}
+          <div style={{ fontSize: '0.82rem', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '4px', color: '#333' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div><strong>Name:</strong> {pd.name || '---'}</div>
+              <div><strong>Date:</strong> {new Date().toLocaleDateString()}</div>
+            </div>
+            <div><strong>Age / Gender:</strong> {pd.age || '--'} / {pd.gender}</div>
+            {pd.phone    && <div><strong>Mobile:</strong> {pd.phone}</div>}
+            <div><strong>Address:</strong> {pd.address || 'Not specified'}</div>
+            {pd.diagnosis && <div style={{ marginTop: '6px', color: '#059669' }}><strong>Diagnosis:</strong> {pd.diagnosis}</div>}
+          </div>
+
+          {/* Medicines */}
+          <div style={{ color: '#059669', borderBottom: '1px solid #059669', display: 'inline-block', fontWeight: 700, fontSize: '0.95rem', marginBottom: '10px' }}>
+            Advised Medicines
+          </div>
+          <ul style={{ paddingLeft: '18px', fontSize: '0.85rem', color: '#333', lineHeight: 1.9 }}>
+            {medicines.map(m => (
+              <li key={m.id} style={{ marginBottom: '6px' }}>
                 <strong>{m.name || 'Medicine Name'}</strong>
-                <div style={{ fontSize: '0.8rem', color: '#666' }}>{m.timing} {m.anupan ? `with ${m.anupan}` : ''} • {m.days} days</div>
+                <div style={{ fontSize: '0.78rem', color: '#666' }}>
+                  {m.timing} {m.anupan ? `with ${m.anupan}` : ''} · {m.days} days
+                </div>
               </li>
             ))}
           </ul>
-          
-          <div style={{ marginTop: '30px', borderTop: '1px dashed #ccc', paddingTop: '16px', fontSize: '0.85rem', color: '#444' }}>
-            {pathya && <div><strong>Pathya (Do's):</strong> {pathya}</div>}
-            {apathya && <div style={{ marginTop: '4px' }}><strong>Apathya (Don'ts):</strong> {apathya}</div>}
-            {notes && <div style={{ marginTop: '8px', fontStyle: 'italic' }}><strong>Notes:</strong> {notes}</div>}
-          </div>
 
-          <div style={{ height: '40px' }}></div>
+          {/* Diet / Notes */}
+          {(pathya || apathya || notes) && (
+            <div style={{ marginTop: '20px', borderTop: '1px dashed #ccc', paddingTop: '14px', fontSize: '0.82rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {pathya  && <div><strong>Pathya (Do's):</strong> {pathya}</div>}
+              {apathya && <div><strong>Apathya (Don'ts):</strong> {apathya}</div>}
+              {notes   && <div style={{ fontStyle: 'italic' }}><strong>Notes:</strong> {notes}</div>}
+            </div>
+          )}
         </div>
 
-        <div className="glass-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <button 
-            className="btn btn-secondary" 
-            style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
-            onClick={handleSave}
-            disabled={loading}
-          >
-            {loading ? <><Loader2 className="animate-spin" size={18} /> Saving...</> : <><Save size={18} /> Save Prescription</>}
+        {/* Action buttons */}
+        <div className="glass-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleSave} disabled={loading}>
+            {loading ? <><Loader2 className="animate-spin" size={16} /> Saving…</> : <><Save size={16} /> Save</>}
           </button>
-          <button 
-            className="btn btn-outline" 
-            style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }} 
-            onClick={handleDownload}
-          >
-            <Download size={18} /> Download PDF
+          <button className="btn btn-outline" style={{ width: '100%' }} onClick={handleDownload}>
+            <Download size={16} /> PDF
           </button>
-          <button className="btn btn-primary" style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', gap: '8px', background: '#25D366' }}><Send size={18} /> Send via WhatsApp</button>
+          <button className="btn btn-primary" style={{ gridColumn: 'span 2', background: '#25D366', width: '100%' }}>
+            <Send size={16} /> Send via WhatsApp
+          </button>
         </div>
       </div>
-      
-      <Modal 
-        isOpen={modalConfig.isOpen} 
-        onClose={closeModal} 
+
+      {/* Modal */}
+      <Modal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
         title={modalConfig.title}
         footer={
           modalConfig.showConfirm ? (
             <>
               <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-              <button 
-                className={`btn ${modalConfig.type === 'danger' ? 'btn-danger' : 'btn-primary'}`} 
-                onClick={modalConfig.onConfirm}
-              >
-                Confirm
-              </button>
+              <button className={`btn ${modalConfig.type === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+                onClick={modalConfig.onConfirm}>Confirm</button>
             </>
           ) : (
             <button className="btn btn-primary" onClick={closeModal}>Okay</button>
           )
         }
       >
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <div style={{ 
-            width: '48px', 
-            height: '48px', 
-            borderRadius: '12px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            background: modalConfig.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 
-                        modalConfig.type === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 
-                        modalConfig.type === 'warning' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(14, 165, 233, 0.1)',
-            color: modalConfig.type === 'success' ? '#10b981' : 
-                   modalConfig.type === 'danger' ? '#ef4444' : 
-                   modalConfig.type === 'warning' ? '#f59e0b' : '#0ea5e9'
-          }}>
-            {modalConfig.type === 'success' && <CheckCircle size={28} />}
-            {modalConfig.type === 'danger' && <AlertCircle size={28} />}
-            {modalConfig.type === 'warning' && <HelpCircle size={28} />}
-            {modalConfig.type === 'info' && <AlertCircle size={28} />}
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+          <div style={{ width: '46px', height: '46px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: modalStyle.bg, color: modalStyle.color }}>
+            {modalStyle.icon}
           </div>
-          <div style={{ fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '500' }}>
+          <div style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: 500 }}>
             {modalConfig.message}
           </div>
         </div>

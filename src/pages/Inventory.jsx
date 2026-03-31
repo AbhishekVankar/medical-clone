@@ -8,9 +8,7 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchInventory();
-  }, []);
+  useEffect(() => { fetchInventory(); }, []);
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -52,6 +50,12 @@ export default function Inventory() {
     return 'badge-danger';
   };
 
+  const getQtyColor = (status) => {
+    if (status === 'Critical') return 'var(--danger)';
+    if (status === 'Low Stock') return 'var(--warning)';
+    return 'var(--text-main)';
+  };
+
   return (
     <div className="animate-fade-in">
       <div className="page-header">
@@ -59,27 +63,35 @@ export default function Inventory() {
           <h1 className="page-title">Medicine Inventory</h1>
           <p className="page-subtitle">Track stock levels, expiries, and usage for in-clinic dispensing</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn btn-primary" style={{ display: 'flex', gap: '8px' }}><PlusCircle size={18} /> Add New Medicine</button>
-        </div>
+        <button className="btn btn-primary">
+          <PlusCircle size={18} /> Add Medicine
+        </button>
       </div>
 
+      {/* Stat cards */}
       <div className="dashboard-grid">
-        <div className="glass-panel stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+        <div className="glass-panel stat-card" style={{ borderLeft: '3px solid var(--primary)' }}>
+          <div className="stat-icon" style={{ background: 'rgba(5,150,105,0.12)', color: 'var(--primary)' }}>
+            <Pill size={24} />
+          </div>
           <div className="stat-info">
             <div className="stat-label">Total Items Tracked</div>
             <div className="stat-value">{totalItems}</div>
           </div>
-          <Pill size={40} color="var(--primary)" style={{ position: 'absolute', right: '20px', opacity: 0.2 }} />
         </div>
-        <div className="glass-panel stat-card" style={{ borderLeft: '4px solid var(--danger)' }}>
+        <div className="glass-panel stat-card" style={{ borderLeft: '3px solid var(--danger)' }}>
+          <div className="stat-icon" style={{ background: 'rgba(220,38,38,0.12)', color: 'var(--danger)' }}>
+            <AlertTriangle size={24} />
+          </div>
           <div className="stat-info">
             <div className="stat-label">Low Stock Alerts</div>
             <div className="stat-value" style={{ color: 'var(--danger)' }}>{lowStockCount}</div>
           </div>
-          <AlertTriangle size={40} color="var(--danger)" style={{ position: 'absolute', right: '20px', opacity: 0.2 }} />
         </div>
-        <div className="glass-panel stat-card" style={{ borderLeft: '4px solid var(--warning)' }}>
+        <div className="glass-panel stat-card" style={{ borderLeft: '3px solid var(--warning)' }}>
+          <div className="stat-icon" style={{ background: 'rgba(217,119,6,0.12)', color: 'var(--warning)' }}>
+            <Pill size={24} />
+          </div>
           <div className="stat-info">
             <div className="stat-label">Stock Value</div>
             <div className="stat-value">₹{stockValue.toLocaleString('en-IN')}</div>
@@ -88,15 +100,14 @@ export default function Inventory() {
       </div>
 
       <div className="glass-panel">
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-          <div className="input-field" style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-input)' }}>
-            <Search size={20} color="var(--text-muted)" style={{ marginRight: '10px' }} />
+        <div className="filter-bar">
+          <div className="search-wrapper">
+            <Search size={16} color="var(--text-muted)" />
             <input
               type="text"
-              placeholder="Search inventory..."
+              placeholder="Search by medicine name or brand..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-main)', width: '100%', outline: 'none' }}
             />
           </div>
         </div>
@@ -104,52 +115,54 @@ export default function Inventory() {
         {loading ? (
           <div className="loader-container">
             <Loader2 className="loader-icon" size={36} />
-            <p style={{ color: 'var(--text-muted)' }}>Loading inventory...</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading inventory...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No medicines found</div>
+          <div className="empty-state">
+            <Pill size={40} />
+            <p>No medicines found</p>
+          </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Medicine Name & Brand</th>
-                <th>Formulation</th>
-                <th>Quantity Available</th>
-                <th>Expiry Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <div style={{ fontWeight: '600' }}>{item.medicineName}</div>
-                    {item.brand && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand}</div>}
-                  </td>
-                  <td>{item.formulation || '—'}</td>
-                  <td>
-                    <h3 style={{ margin: 0, color: item.status === 'Critical' ? 'var(--danger)' : item.status === 'Low Stock' ? 'var(--warning)' : 'inherit' }}>
-                      {item.stockQuantity} <span style={{ fontSize: '0.8rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>{item.unit || 'units'}</span>
-                    </h3>
-                  </td>
-                  <td>{item.expiryDate || '—'}</td>
-                  <td>
-                    <span className={`badge ${getBadgeClass(item.status)}`}>{item.status}</span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-outline"
-                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                      onClick={() => consumeItem(item.id)}
-                    >
-                      <ArrowDown size={14} style={{ marginRight: '4px' }} /> Consume
-                    </button>
-                  </td>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Medicine Name & Brand</th>
+                  <th>Formulation</th>
+                  <th>Quantity</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{item.medicineName}</div>
+                      {item.brand && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand}</div>}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{item.formulation || '—'}</td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: getQtyColor(item.status) }}>
+                        {item.stockQuantity}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                        {item.unit || 'units'}
+                      </span>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{item.expiryDate || '—'}</td>
+                    <td><span className={`badge ${getBadgeClass(item.status)}`}>{item.status}</span></td>
+                    <td>
+                      <button className="btn btn-outline btn-sm" onClick={() => consumeItem(item.id)}>
+                        <ArrowDown size={13} /> Consume
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

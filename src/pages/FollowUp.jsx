@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, PhoneCall, Calendar as CalendarIcon, Search, User, Loader2 } from 'lucide-react';
+import { Clock, PhoneCall, Calendar as CalendarIcon, Search, User, Loader2, CalendarClock } from 'lucide-react';
 
 const API = 'http://localhost:5000';
 
@@ -9,9 +9,7 @@ export default function FollowUp() {
   const [filter, setFilter] = useState('7days');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchFollowups();
-  }, [filter]);
+  useEffect(() => { fetchFollowups(); }, [filter]);
 
   const fetchFollowups = async () => {
     setLoading(true);
@@ -31,20 +29,18 @@ export default function FollowUp() {
       const res = await fetch(`${API}/api/followups/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status }),
       });
-      if (res.ok) {
-        setFollowups(prev => prev.map(f => f.id === id ? { ...f, status } : f));
-      }
+      if (res.ok) setFollowups(prev => prev.map(f => f.id === id ? { ...f, status } : f));
     } catch (err) {
       console.error('Failed to update follow-up:', err);
     }
   };
 
-  const getBadgeClass = (status) => {
-    const map = { Called: 'badge-success', Overdue: 'badge-danger', Scheduled: 'badge-primary', Pending: 'badge-warning' };
-    return map[status] || 'badge-warning';
-  };
+  const getBadgeClass = (status) => ({
+    Called: 'badge-success', Overdue: 'badge-danger',
+    Scheduled: 'badge-green', Pending: 'badge-warning',
+  }[status] || 'badge-warning');
 
   const filtered = followups.filter(f =>
     f.patient?.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -60,28 +56,24 @@ export default function FollowUp() {
         </div>
       </div>
 
-      <div className="glass-panel" style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-          <div className="input-field" style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-input)' }}>
-            <Search size={20} color="var(--text-muted)" style={{ marginRight: '10px' }} />
+      <div className="glass-panel">
+        <div className="filter-bar">
+          <div className="search-wrapper">
+            <Search size={16} color="var(--text-muted)" />
             <input
               type="text"
-              placeholder="Search upcoming follow-ups..."
+              placeholder="Search patient or diagnosis..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-main)', width: '100%', outline: 'none' }}
             />
           </div>
-          <div className="input-field" style={{ display: 'flex', alignItems: 'center', width: '250px', background: 'var(--bg-input)' }}>
-            <CalendarIcon size={20} color="var(--text-muted)" style={{ marginRight: '10px' }} />
-            <select
-              style={{ background: 'none', border: 'none', color: 'var(--text-main)', width: '100%', outline: 'none' }}
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-            >
-              <option value="today" style={{ color: '#000' }}>Due Today</option>
-              <option value="7days" style={{ color: '#000' }}>Next 7 Days</option>
-              <option value="overdue" style={{ color: '#000' }}>Overdue</option>
+
+          <div className="search-wrapper search-wrapper--fixed">
+            <CalendarIcon size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+            <select value={filter} onChange={e => setFilter(e.target.value)}>
+              <option value="today">Due Today</option>
+              <option value="7days">Next 7 Days</option>
+              <option value="overdue">Overdue</option>
             </select>
           </div>
         </div>
@@ -89,60 +81,61 @@ export default function FollowUp() {
         {loading ? (
           <div className="loader-container">
             <Loader2 className="loader-icon" size={36} />
-            <p style={{ color: 'var(--text-muted)' }}>Loading follow-ups...</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading follow-ups...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No follow-ups found</div>
+          <div className="empty-state">
+            <CalendarClock size={40} />
+            <p>No follow-ups found for this period</p>
+          </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Patient Name</th>
-                <th>Primary Diagnosis</th>
-                <th>Due Date</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((f) => (
-                <tr key={f.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <User size={16} />
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Diagnosis</th>
+                  <th>Due Date</th>
+                  <th>Contact</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((f) => (
+                  <tr key={f.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div className="followup-avatar">
+                          <User size={14} />
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{f.patient?.name}</span>
                       </div>
-                      <span style={{ fontWeight: '600' }}>{f.patient?.name}</span>
-                    </div>
-                  </td>
-                  <td>{f.diagnosis || '—'}</td>
-                  <td>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: f.status === 'Overdue' ? 'var(--danger)' : 'inherit' }}>
-                      <Clock size={14} /> {new Date(f.dueDate).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td>{f.patient?.contact || '—'}</td>
-                  <td>
-                    <span className={`badge ${getBadgeClass(f.status)}`}>{f.status}</span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{f.diagnosis || '—'}</td>
+                    <td>
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem',
+                        color: f.status === 'Overdue' ? 'var(--danger)' : 'var(--text-secondary)',
+                        fontWeight: f.status === 'Overdue' ? 600 : 400,
+                      }}>
+                        <Clock size={13} /> {new Date(f.dueDate).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{f.patient?.contact || '—'}</td>
+                    <td><span className={`badge ${getBadgeClass(f.status)}`}>{f.status}</span></td>
+                    <td>
                       {f.status !== 'Called' && (
-                        <button
-                          className="btn btn-outline"
-                          style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                          onClick={() => updateStatus(f.id, 'Called')}
-                        >
-                          <PhoneCall size={14} style={{ marginRight: '6px' }} /> Mark Called
+                        <button className="btn btn-outline btn-sm" onClick={() => updateStatus(f.id, 'Called')}>
+                          <PhoneCall size={13} /> Mark Called
                         </button>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

@@ -12,9 +12,7 @@ export default function Dashboard() {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -22,10 +20,10 @@ export default function Dashboard() {
       const [statsRes, weeklyRes, queueRes] = await Promise.all([
         fetch(`${API}/api/dashboard/stats`),
         fetch(`${API}/api/dashboard/weekly`),
-        fetch(`${API}/api/dashboard/queue`)
+        fetch(`${API}/api/dashboard/queue`),
       ]);
       const [statsData, weeklyRaw, queueData] = await Promise.all([
-        statsRes.json(), weeklyRes.json(), queueRes.json()
+        statsRes.json(), weeklyRes.json(), queueRes.json(),
       ]);
       setStats(statsData);
       setWeeklyData(weeklyRaw);
@@ -42,96 +40,100 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Clinic Overview</h1>
-          <p className="page-subtitle">Good morning, Dr. Ayurveda! Here is today's summary.</p>
+          <p className="page-subtitle">Good morning, Dr. Dharmesh! Here is today's summary.</p>
         </div>
-        <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button className="btn btn-primary">
           <Calendar size={18} /> Today, {new Date().toLocaleDateString()}
         </button>
       </div>
 
+      {/* Stat Cards */}
       <div className="dashboard-grid">
         <div className="glass-panel stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)' }}>
-            <Users size={32} />
+          <div className="stat-icon" style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--success)' }}>
+            <Users size={26} />
           </div>
           <div className="stat-info">
             <div className="stat-label">Patients Today</div>
-            <div className="stat-value">{loading ? '...' : stats.patientsToday}</div>
+            <div className="stat-value">{loading ? '—' : stats.patientsToday}</div>
           </div>
         </div>
         <div className="glass-panel stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(14, 165, 233, 0.2)', color: 'var(--secondary)' }}>
-            <Calendar size={32} />
+          <div className="stat-icon" style={{ background: 'rgba(14,165,233,0.15)', color: 'var(--secondary)' }}>
+            <Calendar size={26} />
           </div>
           <div className="stat-info">
             <div className="stat-label">Upcoming Appointments</div>
-            <div className="stat-value">{loading ? '...' : stats.upcomingAppointments}</div>
+            <div className="stat-value">{loading ? '—' : stats.upcomingAppointments}</div>
           </div>
         </div>
         <div className="glass-panel stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)' }}>
-            <TrendingUp size={32} />
+          <div className="stat-icon" style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--warning)' }}>
+            <TrendingUp size={26} />
           </div>
           <div className="stat-info">
             <div className="stat-label">Revenue (Today)</div>
-            <div className="stat-value">{loading ? '...' : `₹${stats.revenueToday.toLocaleString('en-IN')}`}</div>
+            <div className="stat-value">{loading ? '—' : `₹${stats.revenueToday.toLocaleString('en-IN')}`}</div>
           </div>
         </div>
         <div className="glass-panel stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)' }}>
-            <AlertCircle size={32} />
+          <div className="stat-icon" style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--danger)' }}>
+            <AlertCircle size={26} />
           </div>
           <div className="stat-info">
             <div className="stat-label">Low Stock Alerts</div>
-            <div className="stat-value">{loading ? '...' : stats.lowStockCount}</div>
+            <div className="stat-value">{loading ? '—' : stats.lowStockCount}</div>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      {/* Chart + Queue */}
+      <div className="layout-2-1">
         <div className="glass-panel">
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2>Patient Visits & Revenue Overview</h2>
+          <div className="section-header">
+            <h2 className="section-title">Patient Visits & Revenue</h2>
           </div>
-          <div style={{ height: '300px' }}>
+          <div style={{ height: '280px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={weeklyData}>
                 <defs>
                   <linearGradient id="colorPatients" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" />
-                <YAxis stroke="var(--text-muted)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
+                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--bg-dark)', borderColor: 'var(--glass-border)', color: 'var(--text-main)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px' }}
                   itemStyle={{ color: 'var(--text-main)' }}
                 />
-                <Area type="monotone" dataKey="patients" stroke="var(--primary)" fillOpacity={1} fill="url(#colorPatients)" />
+                <Area type="monotone" dataKey="patients" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorPatients)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h2>Today's Queue</h2>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="section-header">
+            <h2 className="section-title">Today's Queue</h2>
+            <span className="badge badge-green">{queue.length} patients</span>
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
             {loading ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>Loading queue...</div>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px', fontSize: '0.875rem' }}>Loading queue...</div>
             ) : queue.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>No appointments today</div>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px', fontSize: '0.875rem' }}>No appointments today</div>
             ) : (
               queue.map((apt, index) => (
-                <div key={apt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-muted)', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                      #{apt.token || index + 1}
-                    </div>
+                <div key={apt.id} className="queue-item">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="token-avatar">#{apt.token || index + 1}</div>
                     <div>
-                      <div style={{ fontWeight: '600' }}>{apt.patient?.name}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{apt.time || '--'} • {apt.type}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{apt.patient?.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{apt.time || 'Walk-in'} · {apt.type}</div>
                     </div>
                   </div>
                   <span className="badge badge-primary">{apt.status}</span>
@@ -139,7 +141,10 @@ export default function Dashboard() {
               ))
             )}
           </div>
-          <button className="btn btn-outline" style={{ width: '100%' }} onClick={() => navigate('/appointments')}>View All Appointments</button>
+
+          <button className="btn btn-outline" style={{ width: '100%' }} onClick={() => navigate('/appointments')}>
+            View All Appointments
+          </button>
         </div>
       </div>
     </div>

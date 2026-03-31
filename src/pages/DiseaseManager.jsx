@@ -8,9 +8,7 @@ export default function DiseaseManager() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchDiseases();
-  }, []);
+  useEffect(() => { fetchDiseases(); }, []);
 
   const fetchDiseases = async () => {
     setLoading(true);
@@ -42,71 +40,75 @@ export default function DiseaseManager() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Smart Disease Manager</h1>
-          <p className="page-subtitle">Configure protocols, pathya-apathya, and auto-suggest medicines for diseases.</p>
+          <p className="page-subtitle">Configure protocols, pathya-apathya, and auto-suggest medicines.</p>
         </div>
-        <button className="btn btn-primary" style={{ display: 'flex', gap: '8px' }}>
-          <Plus size={18} /> Add Disease Protocol
+        <button className="btn btn-primary">
+          <Plus size={18} /> Add Protocol
         </button>
       </div>
 
       <div className="glass-panel">
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-          <div className="input-field" style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-input)' }}>
-            <Search size={20} color="var(--text-muted)" style={{ marginRight: '10px' }} />
+        <div className="filter-bar">
+          <div className="search-wrapper">
+            <Search size={16} color="var(--text-muted)" />
             <input
               type="text"
               placeholder="Search diseases (e.g. Amlapitta, Asthma)..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-main)', width: '100%', outline: 'none' }}
             />
           </div>
-          <button className="btn btn-secondary"><Filter size={18} /> Category Filter</button>
+          <button className="btn btn-secondary">
+            <Filter size={16} /> Category Filter
+          </button>
         </div>
 
         {loading ? (
           <div className="loader-container">
             <Loader2 className="loader-icon" size={36} />
-            <p style={{ color: 'var(--text-muted)' }}>Loading disease protocols...</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading disease protocols...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            No disease protocols found. Add your first protocol.
+          <div className="empty-state">
+            <BookOpen size={40} />
+            <p>No disease protocols found. Add your first protocol.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2">
             {filtered.map((d) => (
-              <div key={d.id} style={{ padding: '20px', background: 'var(--bg-card-hover)', borderRadius: '12px', border: 'var(--glass-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div key={d.id} className="disease-card">
+                <div className="disease-card-header">
                   <div>
-                    <h3 style={{ color: 'var(--primary)', marginBottom: '4px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <BookOpen size={20} /> {d.name}
+                    <h3 style={{ color: 'var(--primary)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <BookOpen size={16} /> {d.name}
                     </h3>
-                    {d.type && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{d.type} System</div>}
+                    {d.type && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{d.type} System</div>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     {d.mainDosha && (
-                      <span className={`badge ${getDoshaBadge(d.mainDosha)}`}>{d.mainDosha} Predominant</span>
+                      <span className={`badge ${getDoshaBadge(d.mainDosha)}`}>{d.mainDosha}</span>
                     )}
-                    <button className="btn" style={{ padding: '4px' }}><Edit size={16} color="var(--text-muted)"/></button>
+                    <button className="btn btn-ghost btn-icon">
+                      <Edit size={15} color="var(--text-muted)" />
+                    </button>
                   </div>
                 </div>
 
-                <div>
-                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Standard Protocol (Auto-suggests in Rx):</strong>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                    Standard Protocol
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {(Array.isArray(d.commonMedicines) ? d.commonMedicines : []).map((m, i) => (
-                      <span key={i} style={{ padding: '4px 10px', background: 'var(--bg-input)', borderRadius: '20px', fontSize: '0.85rem' }}>
-                        {m}
-                      </span>
+                      <span key={i} className="med-pill">{m}</span>
                     ))}
                   </div>
                 </div>
 
                 {(d.pathya || d.apathya) && (
-                  <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                    {d.pathya && <div><strong>Pathya:</strong> {d.pathya}</div>}
-                    {d.apathya && <div><strong>Apathya:</strong> {d.apathya}</div>}
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {d.pathya && <div><strong style={{ color: 'var(--success)' }}>Pathya:</strong> {d.pathya}</div>}
+                    {d.apathya && <div><strong style={{ color: 'var(--danger)' }}>Apathya:</strong> {d.apathya}</div>}
                   </div>
                 )}
               </div>

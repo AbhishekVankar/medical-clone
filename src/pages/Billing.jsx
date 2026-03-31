@@ -9,16 +9,14 @@ export default function Billing() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [billsRes, statsRes] = await Promise.all([
         fetch(`${API}/api/billing`),
-        fetch(`${API}/api/billing/stats`)
+        fetch(`${API}/api/billing/stats`),
       ]);
       const [billsData, statsData] = await Promise.all([billsRes.json(), statsRes.json()]);
       setBills(billsData);
@@ -34,15 +32,13 @@ export default function Billing() {
     try {
       const res = await fetch(`${API}/api/billing/${id}/pay`, { method: 'PATCH' });
       if (res.ok) {
+        const bill = bills.find(b => b.id === id);
         setBills(prev => prev.map(b => b.id === id ? { ...b, paidStatus: true } : b));
-        setStats(prev => {
-          const bill = bills.find(b => b.id === id);
-          return {
-            ...prev,
-            pendingAmount: prev.pendingAmount - (bill?.totalAmount || 0),
-            totalRevenue: prev.totalRevenue + (bill?.totalAmount || 0)
-          };
-        });
+        setStats(prev => ({
+          ...prev,
+          pendingAmount: prev.pendingAmount - (bill?.totalAmount || 0),
+          totalRevenue: prev.totalRevenue + (bill?.totalAmount || 0),
+        }));
       }
     } catch (err) {
       console.error('Failed to mark as paid:', err);
@@ -61,45 +57,52 @@ export default function Billing() {
           <h1 className="page-title">Billing & Payments</h1>
           <p className="page-subtitle">Manage invoices, collect payments, and track revenue</p>
         </div>
-        <button className="btn btn-primary" style={{ display: 'flex', gap: '8px' }}>
+        <button className="btn btn-primary">
           <IndianRupee size={18} /> Generate Invoice
         </button>
       </div>
 
+      {/* Stat cards */}
       <div className="dashboard-grid">
         <div className="glass-panel stat-card">
+          <div className="stat-icon" style={{ background: 'rgba(5,150,105,0.12)', color: 'var(--success)' }}>
+            <IndianRupee size={24} />
+          </div>
           <div className="stat-info">
-            <div className="stat-label">Total Revenue (This Month)</div>
+            <div className="stat-label">Total Revenue (Month)</div>
             <div className="stat-value" style={{ color: 'var(--success)' }}>₹{stats.totalRevenue.toLocaleString('en-IN')}</div>
           </div>
-          <IndianRupee size={40} color="var(--success)" style={{ position: 'absolute', right: '20px', opacity: 0.2 }} />
         </div>
         <div className="glass-panel stat-card">
+          <div className="stat-icon" style={{ background: 'rgba(217,119,6,0.12)', color: 'var(--warning)' }}>
+            <FileText size={24} />
+          </div>
           <div className="stat-info">
             <div className="stat-label">Pending Payments</div>
             <div className="stat-value" style={{ color: 'var(--warning)' }}>₹{stats.pendingAmount.toLocaleString('en-IN')}</div>
           </div>
-          <FileText size={40} color="var(--warning)" style={{ position: 'absolute', right: '20px', opacity: 0.2 }} />
         </div>
         <div className="glass-panel stat-card">
+          <div className="stat-icon" style={{ background: 'rgba(15,23,42,0.08)', color: 'var(--text-main)' }}>
+            <CheckCircle size={24} />
+          </div>
           <div className="stat-info">
             <div className="stat-label">Invoices Generated</div>
             <div className="stat-value">{stats.invoiceCount}</div>
           </div>
-          <CheckCircle size={40} color="var(--text-main)" style={{ position: 'absolute', right: '20px', opacity: 0.1 }} />
         </div>
       </div>
 
       <div className="glass-panel">
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-          <div className="input-field" style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-input)' }}>
-            <Search size={20} color="var(--text-muted)" style={{ marginRight: '10px' }} />
+        {/* Filter bar */}
+        <div className="filter-bar">
+          <div className="search-wrapper">
+            <Search size={16} color="var(--text-muted)" />
             <input
               type="text"
               placeholder="Search by Invoice ID or Patient Name..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-main)', width: '100%', outline: 'none' }}
             />
           </div>
         </div>
@@ -107,51 +110,52 @@ export default function Billing() {
         {loading ? (
           <div className="loader-container">
             <Loader2 className="loader-icon" size={36} />
-            <p style={{ color: 'var(--text-muted)' }}>Loading invoices...</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading invoices...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No invoices found</div>
+          <div className="empty-state">
+            <FileText size={40} />
+            <p>No invoices found</p>
+          </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Invoice ID</th>
-                <th>Patient Name</th>
-                <th>Date</th>
-                <th>Bill Type</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((bill) => (
-                <tr key={bill.id}>
-                  <td><span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{bill.invoiceNo}</span></td>
-                  <td>{bill.patient?.name}</td>
-                  <td>{new Date(bill.createdAt).toLocaleDateString()}</td>
-                  <td>{bill.billType || 'Consultation'}</td>
-                  <td style={{ fontWeight: '600' }}>₹{bill.totalAmount.toLocaleString('en-IN')}</td>
-                  <td>
-                    <span className={`badge ${bill.paidStatus ? 'badge-success' : 'badge-warning'}`}>
-                      {bill.paidStatus ? 'Paid' : 'Pending'}
-                    </span>
-                  </td>
-                  <td>
-                    {!bill.paidStatus && (
-                      <button
-                        className="btn btn-primary"
-                        style={{ padding: '4px 12px', fontSize: '0.8rem' }}
-                        onClick={() => markAsPaid(bill.id)}
-                      >
-                        Mark Paid
-                      </button>
-                    )}
-                  </td>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Invoice ID</th>
+                  <th>Patient</th>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((bill) => (
+                  <tr key={bill.id}>
+                    <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{bill.invoiceNo}</td>
+                    <td style={{ fontWeight: 500 }}>{bill.patient?.name}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{new Date(bill.createdAt).toLocaleDateString()}</td>
+                    <td>{bill.billType || 'Consultation'}</td>
+                    <td style={{ fontWeight: 600 }}>₹{bill.totalAmount.toLocaleString('en-IN')}</td>
+                    <td>
+                      <span className={`badge ${bill.paidStatus ? 'badge-success' : 'badge-warning'}`}>
+                        {bill.paidStatus ? 'Paid' : 'Pending'}
+                      </span>
+                    </td>
+                    <td>
+                      {!bill.paidStatus && (
+                        <button className="btn btn-primary btn-sm" onClick={() => markAsPaid(bill.id)}>
+                          Mark Paid
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
