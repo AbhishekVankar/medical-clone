@@ -11,7 +11,8 @@ model User {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
-  role      String   @default("Doctor") // User Roles: Admin, Doctor, Receptionist
+  password  String
+  role      String   @default("Doctor") // Admin, Doctor, Receptionist
   createdAt DateTime @default(now())
 }
 
@@ -20,61 +21,97 @@ model Patient {
   id          String   @id @default(uuid())
   name        String
   age         Int
-  gender      String?  // Added for completeness as seen in UI (45/M)
+  gender      String?
   contact     String
-  address     String?  // Added as requested (addrhs)
-  medicalHist Json?    // Using JSONB support in postgres for flexible history
+  address     String?
+  medicalHist Json?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  // Relations
   appointments  Appointment[]
   prescriptions Prescription[]
   bills         Billing[]
+  followUps     FollowUp[]
 }
 
-// Inventory management inside the clinic
+// Medicine stock inventory
 model Inventory {
-  id             String   @id @default(uuid())
-  medicineName   String
-  stockQuantity  Int
-  price          Float
-  createdAt      DateTime @default(now())
+  id                String   @id @default(uuid())
+  medicineName      String
+  brand             String?
+  formulation       String?       // Tablet, Powder, Liquid, Avaleha, etc.
+  stockQuantity     Int
+  unit              String?       // Bottles, Jars, Strips, etc.
+  price             Float
+  expiryDate        String?       // Stored as "YYYY-MM" string
+  lowStockThreshold Int      @default(20)
+  createdAt         DateTime @default(now())
 }
 
 // Patient Appointments
 model Appointment {
-  id          String   @id @default(uuid())
-  patientId   String
-  date        DateTime
-  status      String   @default("pending") // pending, completed, cancelled
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  patientId String
+  date      DateTime
+  time      String?                        // e.g. "09:00 AM"
+  type      String   @default("New Consult") // New Consult, Follow Up, Prakriti Parikshan, Nadi Pariksha
+  status    String   @default("Scheduled")  // Scheduled, Waiting, Consulting, Completed, Cancelled, Rescheduled
+  token     Int?
+  notes     String?
+  createdAt DateTime @default(now())
 
-  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
-// Prescriptions details for a specific patient
+// Prescriptions for a patient
 model Prescription {
-  id          String   @id @default(uuid())
-  patientId   String
-  diagnosis   String?
-  medicines   Json     // Storing list/dosage of medicines flexibly
-  pathya      String?
-  apathya     String?
-  notes       String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  patientId String
+  diagnosis String?
+  medicines Json     // Array of { name, timing, anupan, days }
+  pathya    String?
+  apathya   String?
+  notes     String?
+  createdAt DateTime @default(now())
 
-  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
-// Billing/Invoices created in the Clinic
+// Billing & Invoices
 model Billing {
   id          String   @id @default(uuid())
   patientId   String
+  invoiceNo   String   @unique
   totalAmount Float
   paidStatus  Boolean  @default(false)
+  billType    String?  // Consultation, Medicines, Panchakarma, etc.
   createdAt   DateTime @default(now())
 
-  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+// Patient Follow-up reminders
+model FollowUp {
+  id        String   @id @default(uuid())
+  patientId String
+  diagnosis String?
+  dueDate   DateTime
+  status    String   @default("Scheduled") // Scheduled, Pending, Called, Overdue
+  notes     String?
+  createdAt DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+// Ayurvedic Disease Protocols (auto-suggest medicines for a diagnosis)
+model DiseaseProtocol {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  type            String?  // Digestive, Musculoskeletal, Metabolic, Respiratory, etc.
+  mainDosha       String?  // Vata, Pitta, Kapha, Kapha-Vata, etc.
+  commonMedicines Json     // Array of medicine name strings
+  pathya          String?
+  apathya         String?
+  createdAt       DateTime @default(now())
 }

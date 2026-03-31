@@ -1,6 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
+import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,92 +12,418 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-const ayurvedicMedicines = [
-  { medicineName: 'Triphala Churna', stockQuantity: 100, price: 150 },
-  { medicineName: 'Avipattikar Churna', stockQuantity: 80, price: 200 },
-  { medicineName: 'Ashwagandha Arishta', stockQuantity: 50, price: 350 },
-  { medicineName: 'Chandraprabha Vati', stockQuantity: 120, price: 180 },
-  { medicineName: 'Gokshuradi Guggulu', stockQuantity: 90, price: 220 },
-  { medicineName: 'Kaishore Guggulu', stockQuantity: 70, price: 240 },
-  { medicineName: 'Mahasudarshan Ghan Vati', stockQuantity: 60, price: 190 },
-  { medicineName: 'Brahmi Vati', stockQuantity: 40, price: 300 },
-  { medicineName: 'Shatavari Kalpa', stockQuantity: 110, price: 280 },
-  { medicineName: 'Sitopaladi Churna', stockQuantity: 150, price: 120 },
-  { medicineName: 'Talisadi Churna', stockQuantity: 85, price: 130 },
-  { medicineName: 'Lavan Bhaskar Churna', stockQuantity: 100, price: 110 },
-  { medicineName: 'Hingwashtak Churna', stockQuantity: 95, price: 140 },
-  { medicineName: 'Trikatu Churna', stockQuantity: 120, price: 100 },
-  { medicineName: 'Arjuna Arishta', stockQuantity: 55, price: 320 },
-  { medicineName: 'Dashmularishta', stockQuantity: 45, price: 400 },
-  { medicineName: 'Kumaryasava', stockQuantity: 50, price: 280 },
-  { medicineName: 'Arvindasava', stockQuantity: 40, price: 350 },
-  { medicineName: 'Kutajarishta', stockQuantity: 65, price: 300 },
-  { medicineName: 'Lohasava', stockQuantity: 75, price: 260 },
-  { medicineName: 'Punarnavasava', stockQuantity: 80, price: 290 },
-  { medicineName: 'Abhayarishta', stockQuantity: 70, price: 270 },
-  { medicineName: 'Saraswatarishta', stockQuantity: 35, price: 450 },
-  { medicineName: 'Khadirarishta', stockQuantity: 60, price: 330 },
-  { medicineName: 'Balarishta', stockQuantity: 50, price: 310 },
-  { medicineName: 'Chyawanprash', stockQuantity: 200, price: 550 },
-  { medicineName: 'Brahma Rasayan', stockQuantity: 40, price: 480 },
-  { medicineName: 'Agastya Hareetaki', stockQuantity: 50, price: 320 },
-  { medicineName: 'Triphala Guggulu', stockQuantity: 100, price: 210 },
-  { medicineName: 'Yograj Guggulu', stockQuantity: 90, price: 250 },
-  { medicineName: 'Amritarishta', stockQuantity: 50, price: 330 },
-  { medicineName: 'Vasarishta', stockQuantity: 45, price: 290 },
-  { medicineName: 'Vidangarishta', stockQuantity: 40, price: 310 },
-  { medicineName: 'Kanchanar Guggulu', stockQuantity: 85, price: 230 },
-  { medicineName: 'Punarnavadi Guggulu', stockQuantity: 70, price: 220 },
-  { medicineName: 'Saptamrit Lauh', stockQuantity: 60, price: 180 },
-  { medicineName: 'Arogyavardhini Vati', stockQuantity: 150, price: 200 },
-  { medicineName: 'Gandhak Rasayan', stockQuantity: 120, price: 160 },
-  { medicineName: 'Panch Tulsi Drops', stockQuantity: 300, price: 100 },
-  { medicineName: 'Anu Taila', stockQuantity: 100, price: 80 },
-  { medicineName: 'Kshirbala Taila', stockQuantity: 50, price: 450 },
-  { medicineName: 'Mahanarayan Taila', stockQuantity: 40, price: 500 },
-  { medicineName: 'Dhanwantharam Tailam', stockQuantity: 45, price: 480 },
-  { medicineName: 'Brahmi Oil', stockQuantity: 60, price: 350 },
-  { medicineName: 'Neem Oil', stockQuantity: 100, price: 150 },
-  { medicineName: 'Castor Oil (Eranda Taila)', stockQuantity: 150, price: 120 },
-  { medicineName: 'Kumkumadi Tailam', stockQuantity: 20, price: 1200 },
-  { medicineName: 'Eladi Tailam', stockQuantity: 30, price: 600 },
-  { medicineName: 'Nimbadi Churna', stockQuantity: 80, price: 140 },
-  { medicineName: 'Sarivadyasava', stockQuantity: 50, price: 320 },
-  { medicineName: 'Paracetamol 500mg', stockQuantity: 500, price: 20 },
-  { medicineName: 'Amoxicillin 250mg', stockQuantity: 200, price: 50 },
-  { medicineName: 'Azithromycin 500mg', stockQuantity: 150, price: 80 },
-  { medicineName: 'Ciprofloxacin 500mg', stockQuantity: 100, price: 45 },
-  { medicineName: 'Metformin 500mg', stockQuantity: 300, price: 30 },
-  { medicineName: 'Atorvastatin 10mg', stockQuantity: 250, price: 60 },
-  { medicineName: 'Amlodipine 5mg', stockQuantity: 200, price: 25 },
-  { medicineName: 'Losartan 50mg', stockQuantity: 150, price: 40 },
-  { medicineName: 'Omeprazole 20mg', stockQuantity: 400, price: 35 },
-  { medicineName: 'Pantoprazole 40mg', stockQuantity: 350, price: 45 },
-  { medicineName: 'Cetirizine 10mg', stockQuantity: 500, price: 15 },
-  { medicineName: 'Loratadine 10mg', stockQuantity: 300, price: 20 },
-  { medicineName: 'Ibuprofen 400mg', stockQuantity: 250, price: 30 },
-  { medicineName: 'Diclofenac 50mg', stockQuantity: 200, price: 25 },
-  { medicineName: 'Salbutamol Inhaler', stockQuantity: 50, price: 150 },
-  { medicineName: 'Montelukast 10mg', stockQuantity: 180, price: 70 },
-  { medicineName: 'Vitamin C 500mg', stockQuantity: 1000, price: 10 },
-  { medicineName: 'Multivitamin Syrup', stockQuantity: 100, price: 120 },
-  { medicineName: 'B-Complex Capsules', stockQuantity: 400, price: 40 },
-  { medicineName: 'Calcium + Vitamin D3', stockQuantity: 300, price: 90 },
-  { medicineName: 'Silver Nitrate Ointment', stockQuantity: 50, price: 80 }
+// ------------------------------------------------------------
+// NHS MEDICINES A–Z (238 items)
+// stockQuantity: 0 = not yet stocked (update via Inventory page)
+// price: 0 = price not set yet
+// ------------------------------------------------------------
+const medicines = [
+  // A
+  { medicineName: 'Aciclovir (Zovirax)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Acrivastine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Adalimumab', stockQuantity: 0, price: 0 },
+  { medicineName: 'Alendronic acid', stockQuantity: 0, price: 0 },
+  { medicineName: 'Allopurinol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Alogliptin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Amitriptyline (for depression)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Amitriptyline (for pain and migraine)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Amlodipine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Amoxicillin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Anastrozole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Antacids', stockQuantity: 0, price: 0 },
+  { medicineName: 'Antibiotics', stockQuantity: 0, price: 0 },
+  { medicineName: 'Anticoagulant medicines', stockQuantity: 0, price: 0 },
+  { medicineName: 'Antidepressants', stockQuantity: 0, price: 0 },
+  { medicineName: 'Antifungal medicines', stockQuantity: 0, price: 0 },
+  { medicineName: 'Antihistamines', stockQuantity: 0, price: 0 },
+  { medicineName: 'Apixaban', stockQuantity: 0, price: 0 },
+  { medicineName: 'Aripiprazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Aspirin (for pain relief)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Aspirin (low-dose)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Atenolol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Atorvastatin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Azathioprine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Azithromycin', stockQuantity: 0, price: 0 },
+
+  // B
+  { medicineName: 'Baclofen', stockQuantity: 0, price: 0 },
+  { medicineName: 'Beclometasone inhalers', stockQuantity: 0, price: 0 },
+  { medicineName: 'Beclometasone nasal spray', stockQuantity: 0, price: 0 },
+  { medicineName: 'Beclometasone skin cream', stockQuantity: 0, price: 0 },
+  { medicineName: 'Bendroflumethiazide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Benzoyl peroxide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Benzydamine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Beta blockers', stockQuantity: 0, price: 0 },
+  { medicineName: 'Betahistine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Betamethasone (eyes, ears, nose)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Betamethasone (skin)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Bimatoprost (Lumigan)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Bisacodyl', stockQuantity: 0, price: 0 },
+  { medicineName: 'Bismuth subsalicylate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Bisoprolol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Brinzolamide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Budesonide inhalers', stockQuantity: 0, price: 0 },
+  { medicineName: 'Budesonide nasal spray', stockQuantity: 0, price: 0 },
+  { medicineName: 'Budesonide rectal foam', stockQuantity: 0, price: 0 },
+  { medicineName: 'Bumetanide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Buprenorphine (pain)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Buscopan (hyoscine butylbromide)', stockQuantity: 0, price: 0 },
+
+  // C
+  { medicineName: 'Calcipotriol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Calpol (Paracetamol for children)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Candesartan', stockQuantity: 0, price: 0 },
+  { medicineName: 'Canesten (Clotrimazole)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Cannabis oil (medical)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Carbamazepine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Carbimazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Carbocisteine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Carmellose sodium eye drops', stockQuantity: 0, price: 0 },
+  { medicineName: 'Carvedilol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Cefalexin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Cetirizine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Chloramphenicol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Chlorhexidine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Chlorphenamine (Piriton)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Cinnarizine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ciprofloxacin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Citalopram', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clarithromycin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clarityn (Loratadine)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clobetasol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clobetasone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clonazepam', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clonidine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clopidogrel', stockQuantity: 0, price: 0 },
+  { medicineName: 'Clotrimazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Co-amoxiclav', stockQuantity: 0, price: 0 },
+  { medicineName: 'Co-beneldopa', stockQuantity: 0, price: 0 },
+  { medicineName: 'Co-careldopa', stockQuantity: 0, price: 0 },
+  { medicineName: 'Co-codamol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Co-dydramol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Codeine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Colchicine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Colecalciferol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Cyanocobalamin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Cyclizine', stockQuantity: 0, price: 0 },
+
+  // D
+  { medicineName: 'Dapagliflozin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Decongestants', stockQuantity: 0, price: 0 },
+  { medicineName: 'Dexamethasone (eye drops)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Dexamethasone (tablets/liquid)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Diazepam', stockQuantity: 0, price: 0 },
+  { medicineName: 'Diclofenac', stockQuantity: 0, price: 0 },
+  { medicineName: 'Digoxin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Dihydrocodeine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Diltiazem', stockQuantity: 0, price: 0 },
+  { medicineName: 'Diphenhydramine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Dipyridamole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Docusate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Domperidone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Donepezil', stockQuantity: 0, price: 0 },
+  { medicineName: 'Doxazosin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Doxycycline', stockQuantity: 0, price: 0 },
+  { medicineName: 'Duloxetine', stockQuantity: 0, price: 0 },
+
+  // E
+  { medicineName: 'Edoxaban', stockQuantity: 0, price: 0 },
+  { medicineName: 'Empagliflozin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Enalapril', stockQuantity: 0, price: 0 },
+  { medicineName: 'Eplerenone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Erythromycin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Escitalopram', stockQuantity: 0, price: 0 },
+  { medicineName: 'Esomeprazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ezetimibe', stockQuantity: 0, price: 0 },
+
+  // F
+  { medicineName: 'Felodipine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fentanyl', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ferrous fumarate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ferrous sulfate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fexofenadine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Finasteride', stockQuantity: 0, price: 0 },
+  { medicineName: 'Flucloxacillin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fluconazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fluoxetine (Prozac)', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fluticasone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Folic acid', stockQuantity: 0, price: 0 },
+  { medicineName: 'Furosemide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fusidic acid', stockQuantity: 0, price: 0 },
+  { medicineName: 'Fybogel', stockQuantity: 0, price: 0 },
+
+  // G
+  { medicineName: 'Gabapentin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Gaviscon', stockQuantity: 0, price: 0 },
+  { medicineName: 'Gliclazide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Glyceryl trinitrate (GTN)', stockQuantity: 0, price: 0 },
+
+  // H
+  { medicineName: 'Haloperidol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Hydrocortisone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Hydroxocobalamin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Hydroxychloroquine', stockQuantity: 0, price: 0 },
+
+  // I
+  { medicineName: 'Ibuprofen', stockQuantity: 0, price: 0 },
+  { medicineName: 'Indapamide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Insulin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Irbesartan', stockQuantity: 0, price: 0 },
+  { medicineName: 'Isotretinoin', stockQuantity: 0, price: 0 },
+
+  // J
+  { medicineName: 'Joy-Rides', stockQuantity: 0, price: 0 },
+
+  // K
+  { medicineName: 'Ketoconazole', stockQuantity: 0, price: 0 },
+
+  // L
+  { medicineName: 'Lactulose', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lamotrigine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lansoprazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Latanoprost', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lercanidipine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Letrozole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Levetiracetam', stockQuantity: 0, price: 0 },
+  { medicineName: 'Levothyroxine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lidocaine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Linagliptin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lisinopril', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lithium', stockQuantity: 0, price: 0 },
+  { medicineName: 'Loperamide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Loratadine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lorazepam', stockQuantity: 0, price: 0 },
+  { medicineName: 'Losartan', stockQuantity: 0, price: 0 },
+  { medicineName: 'Low-dose aspirin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Lymecycline', stockQuantity: 0, price: 0 },
+
+  // M
+  { medicineName: 'Macrogol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Mebendazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Mebeverine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Melatonin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Memantine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Mesalazine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Metformin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Methadone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Methotrexate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Metoclopramide', stockQuantity: 0, price: 0 },
+  { medicineName: 'Metoprolol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Metronidazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Mirabegron', stockQuantity: 0, price: 0 },
+  { medicineName: 'Mirtazapine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Montelukast', stockQuantity: 0, price: 0 },
+  { medicineName: 'Morphine', stockQuantity: 0, price: 0 },
+
+  // N
+  { medicineName: 'Naproxen', stockQuantity: 0, price: 0 },
+  { medicineName: 'Nefopam', stockQuantity: 0, price: 0 },
+  { medicineName: 'Nicorandil', stockQuantity: 0, price: 0 },
+  { medicineName: 'Nifedipine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Nitrofurantoin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Nortriptyline', stockQuantity: 0, price: 0 },
+  { medicineName: 'Nystatin', stockQuantity: 0, price: 0 },
+
+  // O
+  { medicineName: 'Oestrogen', stockQuantity: 0, price: 0 },
+  { medicineName: 'Olanzapine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Omeprazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Oxybutynin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Oxycodone', stockQuantity: 0, price: 0 },
+
+  // P
+  { medicineName: 'Pantoprazole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Paracetamol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Paroxetine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Peppermint oil', stockQuantity: 0, price: 0 },
+  { medicineName: 'Perindopril', stockQuantity: 0, price: 0 },
+  { medicineName: 'Phenoxymethylpenicillin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Pravastatin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Prednisolone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Pregabalin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Prochlorperazine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Promethazine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Propranolol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Pseudoephedrine', stockQuantity: 0, price: 0 },
+
+  // Q
+  { medicineName: 'Quetiapine', stockQuantity: 0, price: 0 },
+
+  // R
+  { medicineName: 'Ramipril', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ranitidine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Risperidone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Rivaroxaban', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ropinirole', stockQuantity: 0, price: 0 },
+  { medicineName: 'Rosuvastatin', stockQuantity: 0, price: 0 },
+
+  // S
+  { medicineName: 'Salbutamol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Senna', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sertraline', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sildenafil', stockQuantity: 0, price: 0 },
+  { medicineName: 'Simeticone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Simvastatin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sitagliptin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sodium valproate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Solifenacin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sotalol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Spironolactone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sulfasalazine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Sumatriptan', stockQuantity: 0, price: 0 },
+
+  // T
+  { medicineName: 'Tadalafil', stockQuantity: 0, price: 0 },
+  { medicineName: 'Tamsulosin', stockQuantity: 0, price: 0 },
+  { medicineName: 'Terbinafine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Thiamine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Ticagrelor', stockQuantity: 0, price: 0 },
+  { medicineName: 'Timolol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Tiotropium', stockQuantity: 0, price: 0 },
+  { medicineName: 'Tolterodine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Topiramate', stockQuantity: 0, price: 0 },
+  { medicineName: 'Tramadol', stockQuantity: 0, price: 0 },
+  { medicineName: 'Tranexamic acid', stockQuantity: 0, price: 0 },
+  { medicineName: 'Trazodone', stockQuantity: 0, price: 0 },
+  { medicineName: 'Trimethoprim', stockQuantity: 0, price: 0 },
+
+  // U
+  { medicineName: 'Utrogestan', stockQuantity: 0, price: 0 },
+
+  // V
+  { medicineName: 'Valproic acid', stockQuantity: 0, price: 0 },
+  { medicineName: 'Valsartan', stockQuantity: 0, price: 0 },
+  { medicineName: 'Varenicline', stockQuantity: 0, price: 0 },
+  { medicineName: 'Venlafaxine', stockQuantity: 0, price: 0 },
+  { medicineName: 'Verapamil', stockQuantity: 0, price: 0 },
+
+  // W
+  { medicineName: 'Warfarin', stockQuantity: 0, price: 0 },
+
+  // Z
+  { medicineName: 'Zolpidem', stockQuantity: 0, price: 0 },
+  { medicineName: 'Zopiclone', stockQuantity: 0, price: 0 },
 ];
 
+// ------------------------------------------------------------
+// DISEASE PROTOCOLS (Ayurvedic)
+// ------------------------------------------------------------
+const diseases = [
+  {
+    name: 'Amlapitta',
+    type: 'Digestive',
+    mainDosha: 'Pitta',
+    commonMedicines: ['Avipattikar Churna', 'Kamdudha Ras', 'Sutshekhar Ras', 'Shatavari Kalpa'],
+    pathya: 'Light digestible food, Moong dal, Buttermilk, Coconut water',
+    apathya: 'Spicy food, Sour items, Fermented food, Alcohol, Coffee'
+  },
+  {
+    name: 'Sandhigata Vata',
+    type: 'Musculoskeletal',
+    mainDosha: 'Vata',
+    commonMedicines: ['Yograj Guggulu', 'Maharasnadi Kwath', 'Ashwagandha', 'Mahanarayan Taila'],
+    pathya: 'Warm food, Sesame oil massage, Light exercise, Warm water',
+    apathya: 'Cold exposure, Heavy exercise, Dry food, Fasting'
+  },
+  {
+    name: 'Madhumeha',
+    type: 'Metabolic',
+    mainDosha: 'Kapha',
+    commonMedicines: ['Vasant Kusumakar Ras', 'Chandraprabha Vati', 'Nishamalaki', 'Metformin 500mg'],
+    pathya: 'Bitter vegetables, Barley, Whole grains, Regular exercise',
+    apathya: 'Sugar, Sweet fruits, White rice, Sedentary lifestyle'
+  },
+  {
+    name: 'Tamaka Shwasa',
+    type: 'Respiratory',
+    mainDosha: 'Kapha-Vata',
+    commonMedicines: ['Sitopaladi Churna', 'Kanakasava', 'Talisadi Churna', 'Salbutamol Inhaler'],
+    pathya: 'Warm food, Ginger tea, Steam inhalation, Pranayama',
+    apathya: 'Cold food, Dust exposure, Heavy meals, Cold beverages'
+  },
+  {
+    name: 'Agnimandya',
+    type: 'Digestive',
+    mainDosha: 'Kapha',
+    commonMedicines: ['Hingwashtak Churna', 'Trikatu Churna', 'Chitrakadi Vati', 'Lavan Bhaskar Churna'],
+    pathya: 'Light meals, Warm water, Ginger, Rock salt',
+    apathya: 'Heavy food, Cold items, Overeating, Late night meals'
+  },
+  {
+    name: 'Pratishyaya',
+    type: 'Respiratory',
+    mainDosha: 'Kapha',
+    commonMedicines: ['Sitopaladi Churna', 'Talisadi Churna', 'Tribhuvan Kirti Rasa', 'Anu Taila'],
+    pathya: 'Warm soup, Ginger with honey, Steam inhalation, Rest',
+    apathya: 'Cold water, Ice cream, AC exposure, Dust'
+  },
+  {
+    name: 'PCOS (Artava Kshaya)',
+    type: 'Gynaecological',
+    mainDosha: 'Kapha-Vata',
+    commonMedicines: ['Shatavari Kalpa', 'Chandraprabha Vati', 'Kanchanar Guggulu', 'Dashmularishta'],
+    pathya: 'Fruits, Vegetables, Regular yoga, Stress management',
+    apathya: 'Junk food, Sedentary lifestyle, Stress, Hormonal disruptors'
+  }
+];
+
+// ------------------------------------------------------------
+// DEFAULT ADMIN USER
+// ------------------------------------------------------------
+const adminUser = {
+  name: 'Admin',
+  email: 'admin@ayurclinic.com',
+  password: 'Admin@123',  // Change this after first login!
+  role: 'Admin'
+};
+
+// ------------------------------------------------------------
+// SEED FUNCTION
+// ------------------------------------------------------------
 async function main() {
+  console.log('Starting seed...\n');
+
+  // 1. Seed medicines
   console.log('Seeding medicines...');
-  for (const med of ayurvedicMedicines) {
-    const existing = await prisma.inventory.findFirst({ where: { medicineName: med.medicineName }});
+  let medicineCount = 0;
+  for (const med of medicines) {
+    const existing = await prisma.inventory.findFirst({ where: { medicineName: med.medicineName } });
     if (!existing) {
-        await prisma.inventory.create({ data: med });
-        console.log(`Created: ${med.medicineName}`);
+      await prisma.inventory.create({ data: med });
+      medicineCount++;
     }
   }
-  console.log('Done!');
+  console.log(`  ✓ ${medicineCount} NHS medicines added (${medicines.length - medicineCount} already existed)\n`);
+
+  // 2. Seed disease protocols
+  console.log('Seeding disease protocols...');
+  let diseaseCount = 0;
+  for (const disease of diseases) {
+    const existing = await prisma.diseaseProtocol.findFirst({ where: { name: disease.name } });
+    if (!existing) {
+      await prisma.diseaseProtocol.create({ data: disease });
+      diseaseCount++;
+    }
+  }
+  console.log(`  ✓ ${diseaseCount} new protocols added (${diseases.length - diseaseCount} already existed)\n`);
+
+  // 3. Seed admin user
+  console.log('Seeding admin user...');
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminUser.email } });
+  if (!existingAdmin) {
+    const hashedPassword = await bcrypt.hash(adminUser.password, 10);
+    await prisma.user.create({
+      data: { ...adminUser, password: hashedPassword }
+    });
+    console.log(`  ✓ Admin user created: ${adminUser.email} / ${adminUser.password}`);
+    console.log('  ⚠  Change the admin password after first login!\n');
+  } else {
+    console.log('  ✓ Admin user already exists\n');
+  }
+
+  console.log('Seed complete!');
 }
 
 main()
-  .catch(e => console.error(e))
+  .catch(e => { console.error('Seed failed:', e); process.exit(1); })
   .finally(async () => await prisma.$disconnect());

@@ -5,51 +5,7 @@ import { Search, Plus, Phone, Activity, History, Loader2 } from 'lucide-react';
 export default function Patients() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [patients, setPatients] = useState([
-    {
-      id: "p1",
-      name: "Rajesh Sharma",
-      age: 45,
-      gender: "Male",
-      phone: "9876543210",
-      prescriptions: [
-        {
-          id: "pr1",
-          createdAt: "2024-03-25T10:00:00Z",
-          diagnosis: "Amlapitta (Hyperacidity)",
-          medicines: [
-            { id: 1, name: "Avipattikar Churna", timing: "Before Meals", anupan: "Warm Water", days: 15 },
-            { id: 2, name: "Sutshekhar Rasa", timing: "After Meals", anupan: "Milk", days: 15 }
-          ]
-        },
-        {
-          id: "pr2",
-          createdAt: "2024-02-10T09:30:00Z",
-          diagnosis: "General weakness",
-          medicines: [
-            { id: 3, name: "Ashwagandha Churna", timing: "Bedtime", anupan: "Milk", days: 30 }
-          ]
-        }
-      ]
-    },
-    {
-      id: "p2",
-      name: "Priya Joshi",
-      age: 32,
-      gender: "Female",
-      phone: "9988776655",
-      prescriptions: [
-        {
-          id: "pr3",
-          createdAt: "2024-03-20T11:45:00Z",
-          diagnosis: "Sandhigata Vata (Arthritis)",
-          medicines: [
-            { id: 4, name: "Yograj Guggulu", timing: "Twice daily", anupan: "Lukewarm Water", days: 20 }
-          ]
-        }
-      ]
-    }
-  ]);
+  const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
