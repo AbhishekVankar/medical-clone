@@ -844,6 +844,140 @@ select.input-field {
   border-bottom: none;
 }
 
+/* ── Drug Reactions ──────────────────────────────────────── */
+.drug-reaction-card {
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drug-reaction-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.drug-reaction-medicine {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.drug-reaction-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(217,119,6,0.15);
+  color: #b45309;
+  border: 1px solid rgba(217,119,6,0.3);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+}
+
+.reaction-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reaction-chip {
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.reaction-chip:hover {
+  border-color: #d97706;
+  color: #92400e;
+  background: rgba(217,119,6,0.08);
+}
+
+.reaction-chip.selected {
+  background: rgba(217,119,6,0.15);
+  border-color: #d97706;
+  color: #92400e;
+  font-weight: 600;
+}
+
+/* ── Lab Reports ──────────────────────────────────────────── */
+.lab-add-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.lab-add-row .input-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.lab-reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lab-report-card {
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: var(--transition);
+}
+
+.lab-report-card:hover {
+  border-color: var(--primary-border);
+}
+
+.lab-report-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lab-report-index {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--primary-surface);
+  border: 1px solid var(--primary-border);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lab-report-type {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  flex: 1;
+  min-width: 0;
+}
+
+.lab-report-remarks {
+  font-size: 0.82rem !important;
+  padding: 7px 10px !important;
+}
+
 /* ── Medicine table: card layout on mobile ───────────────── */
 @media (max-width: 640px) {
   .med-table thead { display: none; }
@@ -1325,6 +1459,8 @@ select.input-field {
   .rx-two-col { grid-template-columns: 1fr; }
   .layout-cal-queue { grid-template-columns: 1fr; }
   .section-header { flex-direction: column; align-items: flex-start; }
+  .lab-add-row { flex-direction: column; align-items: stretch; }
+  .reaction-chip { font-size: 0.75rem; padding: 4px 8px; }
 }
 
 /* ── Print ───────────────────────────────────────────────── */

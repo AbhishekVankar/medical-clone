@@ -1,88 +1,306 @@
 /**
  * seedMedicines.js
  *
- * One-time utility to populate the `inventory` collection in Firestore
- * with the NHS Medicines A-Z list.
+ * Seeds the `inventory` collection with 269 NHS medicines + their side effects.
  *
- * HOW TO RUN (browser)
- * ────────────────────
- * 1.  Import and call `seedMedicines()` once from any page, e.g. in
- *     browser console after opening the app:
+ * HOW TO RE-SEED
+ * ──────────────
+ * 1. Delete the existing `inventory` collection in Firebase Console
+ * 2. Visit /seed in the app and click "Seed Medicines"
  *
- *       import { seedMedicines } from './firebase/seedMedicines';
- *       seedMedicines().then(() => console.log('Done'));
- *
- * 2.  Or add a temporary "Seed DB" button in any component.
- *
- * The function is idempotent — running it a second time will add duplicates.
- * Delete the collection first if you need to re-seed.
+ * The function skips if the collection is already populated.
+ * Pass `force = true` to override the guard and re-seed anyway.
  */
 
-import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
 
-// 238 NHS Medicines A-Z ────────────────────────────────────────────────────
-const NHS_MEDICINES = [
-  'Aciclovir (Zovirax)', 'Acrivastine', 'Adalimumab (Humira)', 'Alendronic acid',
-  'Allopurinol', 'Amitriptyline', 'Amlodipine', 'Amoxicillin', 'Anastrozole',
-  'Antacids', 'Apixaban (Eliquis)', 'Aspirin', 'Atenolol', 'Atorvastatin',
-  'Azathioprine', 'Azithromycin', 'Baclofen', 'Beclometasone inhaler',
-  'Bendroflumethiazide', 'Betahistine', 'Betamethasone skin cream',
-  'Bisoprolol', 'Budesonide inhaler', 'Bumetanide', 'Buspirone',
-  'Calcipotriol', 'Calcium carbonate', 'Candesartan', 'Carbamazepine',
-  'Carbocisteine', 'Carvedilol', 'Cefalexin', 'Cetirizine',
-  'Chloramphenicol', 'Chlorphenamine', 'Ciclosporin', 'Citalopram',
-  'Clarithromycin', 'Clindamycin', 'Clobetasol', 'Clonazepam',
-  'Clopidogrel', 'Clotrimazole', 'Co-amoxiclav', 'Co-codamol',
-  'Codeine', 'Colchicine', 'Colestyramine', 'Cyclizine', 'Dapagliflozin',
-  'Dexamethasone', 'Diazepam', 'Diclofenac', 'Diltiazem', 'Domperidone',
-  'Donepezil', 'Doxazosin', 'Doxycycline', 'Duloxetine', 'Edoxaban',
-  'Empagliflozin', 'Enalapril', 'Erythromycin', 'Escitalopram',
-  'Esomeprazole', 'Etanercept', 'Etoricoxib', 'Ezetimibe', 'Felodipine',
-  'Finasteride', 'Flucloxacillin', 'Fluconazole', 'Fluoxetine',
-  'Flutamide', 'Fluticasone inhaler', 'Fluvoxamine', 'Folic acid',
-  'Furosemide', 'Gabapentin', 'Glipizide', 'Glyclazide', 'Glyceryl trinitrate',
-  'Haloperidol', 'Hydrocortisone', 'Hydroxychloroquine', 'Ibuprofen',
-  'Imatinib', 'Indapamide', 'Insulin glargine', 'Ipratropium',
-  'Irbesartan', 'Isosorbide mononitrate', 'Isotretinoin', 'Ivermectin',
-  'Lactulose', 'Lamotrigine', 'Lansoprazole', 'Latanoprost', 'Leflunomide',
-  'Letrozole', 'Levothyroxine', 'Linagliptin', 'Lisinopril', 'Lithium',
-  'Loperamide', 'Loratadine', 'Lorazepam', 'Losartan', 'Metformin',
-  'Methotrexate', 'Methylphenidate', 'Metoclopramide', 'Metoprolol',
-  'Metronidazole', 'Mirtazapine', 'Mometasone', 'Montelukast',
-  'Morphine', 'Naproxen', 'Nifedipine', 'Nitrofurantoin', 'Nortriptyline',
-  'Nystatin', 'Olanzapine', 'Olmesartan', 'Omeprazole', 'Ondansetron',
-  'Orlistat', 'Oxybutynin', 'Oxycodone', 'Pantoprazole', 'Paracetamol',
-  'Paroxetine', 'Phenoxymethylpenicillin', 'Phenytoin', 'Pioglitazone',
-  'Prednisolone', 'Pregabalin', 'Propranolol', 'Quetiapine', 'Ramipril',
-  'Ranitidine', 'Rivaroxaban (Xarelto)', 'Rosuvastatin', 'Salbutamol inhaler',
-  'Salmeterol', 'Saxagliptin', 'Sertraline', 'Sildenafil', 'Simvastatin',
-  'Sitagliptin', 'Sodium valproate', 'Solifenacin', 'Spironolactone',
-  'Sulfasalazine', 'Sumatriptan', 'Tamoxifen', 'Tamsulosin', 'Terbinafine',
-  'Testosterone', 'Tiotropium', 'Tolterodine', 'Topiramate', 'Tramadol',
-  'Trimethoprim', 'Valsartan', 'Venlafaxine', 'Verapamil', 'Warfarin',
-  'Zopiclone',
+// 269 NHS Medicines A-Z with side effects (source: NHS.uk / PDF export) ────
+const MEDICINES = [
+  { medicineName: 'Aciclovir (Zovirax)', sideEffects: ['Headache', 'Dizziness', 'Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Skin rash', 'Itching', 'Fatigue', 'Sensitivity to sunlight'] },
+  { medicineName: 'Acrivastine', sideEffects: ['Drowsiness', 'Headache', 'Dry mouth', 'Nausea', 'Dizziness'] },
+  { medicineName: 'Adalimumab (Humira)', sideEffects: ['Injection site reactions', 'Increased infections', 'Headache', 'Rash', 'Nausea', 'Fatigue', 'Muscle pain', 'Raised liver enzymes'] },
+  { medicineName: 'Alendronic acid', sideEffects: ['Heartburn', 'Difficulty swallowing', 'Stomach pain', 'Nausea', 'Diarrhoea', 'Constipation', 'Bone pain', 'Muscle pain', 'Headache'] },
+  { medicineName: 'Allopurinol', sideEffects: ['Skin rash', 'Nausea', 'Diarrhoea', 'Drowsiness', 'Headache', 'Altered taste', 'Liver function changes'] },
+  { medicineName: 'Alogliptin', sideEffects: ['Headache', 'Upper respiratory tract infection', 'Nausea', 'Diarrhoea', 'Stomach pain', 'Back pain'] },
+  { medicineName: 'Amitriptyline (depression)', sideEffects: ['Dry mouth', 'Constipation', 'Blurred vision', 'Drowsiness', 'Dizziness', 'Weight gain', 'Difficulty urinating', 'Low blood pressure', 'Palpitations', 'Confusion'] },
+  { medicineName: 'Amitriptyline (pain/migraine)', sideEffects: ['Dry mouth', 'Drowsiness', 'Constipation', 'Dizziness', 'Weight gain', 'Blurred vision', 'Difficulty urinating', 'Fatigue'] },
+  { medicineName: 'Amlodipine', sideEffects: ['Swollen ankles', 'Headache', 'Flushing', 'Dizziness', 'Palpitations', 'Nausea', 'Stomach pain', 'Fatigue', 'Skin rash'] },
+  { medicineName: 'Amoxicillin', sideEffects: ['Diarrhoea', 'Nausea', 'Skin rash', 'Vomiting', 'Headache', 'Oral thrush', 'Vaginal thrush', 'Stomach upset'] },
+  { medicineName: 'Anastrozole', sideEffects: ['Hot flushes', 'Joint pain', 'Fatigue', 'Nausea', 'Headache', 'Osteoporosis', 'Vaginal dryness', 'Mood changes', 'Rash'] },
+  { medicineName: 'Antacids', sideEffects: ['Diarrhoea (magnesium-based)', 'Constipation (aluminium-based)', 'Wind', 'Stomach cramps', 'Nausea'] },
+  { medicineName: 'Antibiotics', sideEffects: ['Diarrhoea', 'Nausea', 'Vomiting', 'Stomach cramps', 'Thrush', 'Allergic reactions', 'Skin rash'] },
+  { medicineName: 'Anticoagulant medicines', sideEffects: ['Bleeding more easily', 'Bruising', 'Nausea', 'Diarrhoea', 'Skin rash', 'Hair loss'] },
+  { medicineName: 'Antidepressants', sideEffects: ['Nausea', 'Dry mouth', 'Drowsiness', 'Dizziness', 'Headache', 'Sexual dysfunction', 'Weight changes', 'Insomnia', 'Increased sweating'] },
+  { medicineName: 'Antifungal medicines', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Headache', 'Skin rash', 'Liver problems'] },
+  { medicineName: 'Antihistamines', sideEffects: ['Drowsiness', 'Dry mouth', 'Blurred vision', 'Difficulty urinating', 'Constipation', 'Dizziness', 'Headache', 'Nausea'] },
+  { medicineName: 'Apixaban (Eliquis)', sideEffects: ['Bruising easily', 'Nausea', 'Anaemia', 'Bleeding', 'Nosebleeds', 'Blood in urine'] },
+  { medicineName: 'Aripiprazole', sideEffects: ['Headache', 'Agitation', 'Insomnia', 'Nausea', 'Vomiting', 'Constipation', 'Dizziness', 'Drowsiness', 'Restlessness', 'Weight gain'] },
+  { medicineName: 'Aspirin (pain relief)', sideEffects: ['Stomach pain', 'Nausea', 'Indigestion', 'Heartburn', 'Bleeding risk', 'Worsening of asthma'] },
+  { medicineName: 'Aspirin (low-dose)', sideEffects: ['Indigestion', 'Nausea', 'Stomach pain', 'Increased bleeding risk', 'Bruising'] },
+  { medicineName: 'Atenolol', sideEffects: ['Tiredness', 'Cold hands and feet', 'Dizziness', 'Slow heartbeat', 'Nausea', 'Diarrhoea', 'Sleep disturbances', 'Low blood pressure'] },
+  { medicineName: 'Atorvastatin', sideEffects: ['Muscle pain', 'Headache', 'Nausea', 'Diarrhoea', 'Constipation', 'Joint pain', 'Raised liver enzymes', 'Increased blood sugar'] },
+  { medicineName: 'Azathioprine', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Loss of appetite', 'Increased infection risk', 'Liver problems', 'Bone marrow suppression', 'Hair loss'] },
+  { medicineName: 'Azithromycin', sideEffects: ['Diarrhoea', 'Nausea', 'Vomiting', 'Stomach pain', 'Headache', 'Dizziness', 'Skin rash', 'Abnormal liver tests'] },
+  { medicineName: 'Baclofen', sideEffects: ['Drowsiness', 'Dizziness', 'Weakness', 'Nausea', 'Headache', 'Confusion', 'Dry mouth', 'Low blood pressure', 'Muscle weakness'] },
+  { medicineName: 'Beclometasone inhaler', sideEffects: ['Thrush in mouth/throat', 'Hoarse voice', 'Cough', 'Headache'] },
+  { medicineName: 'Beclometasone nasal spray', sideEffects: ['Dry or irritated nose', 'Nosebleeds', 'Headache', 'Unpleasant taste or smell'] },
+  { medicineName: 'Beclometasone skin cream', sideEffects: ['Skin thinning', 'Stretch marks', 'Acne', 'Skin irritation', 'Worsening of infections'] },
+  { medicineName: 'Bendroflumethiazide', sideEffects: ['Low potassium', 'Increased thirst', 'Increased urination', 'Dizziness', 'Muscle cramps', 'Nausea', 'Gout flares', 'Sensitivity to sunlight'] },
+  { medicineName: 'Benzoyl peroxide', sideEffects: ['Skin dryness', 'Peeling', 'Redness', 'Burning', 'Stinging', 'Bleaching of fabrics'] },
+  { medicineName: 'Benzydamine', sideEffects: ['Numbing of mouth', 'Stinging', 'Nausea', 'Skin irritation'] },
+  { medicineName: 'Beta blockers', sideEffects: ['Tiredness', 'Cold hands/feet', 'Slow heart rate', 'Dizziness', 'Nausea', 'Sleep problems', 'Impotence', 'Shortness of breath'] },
+  { medicineName: 'Betahistine', sideEffects: ['Nausea', 'Indigestion', 'Headache', 'Skin rash', 'Itching'] },
+  { medicineName: 'Betamethasone (eyes/ears/nose)', sideEffects: ['Stinging or burning', 'Temporary blurred vision', 'Increased eye pressure', 'Thinning of skin'] },
+  { medicineName: 'Betamethasone (skin)', sideEffects: ['Skin thinning', 'Stretch marks', 'Acne', 'Increased hair growth', 'Skin colour changes', 'Worsening of infections'] },
+  { medicineName: 'Bimatoprost (Lumigan)', sideEffects: ['Eye redness', 'Eyelash growth', 'Darkening of iris', 'Eye irritation', 'Eyelid skin darkening'] },
+  { medicineName: 'Bisacodyl', sideEffects: ['Stomach cramps', 'Diarrhoea', 'Nausea', 'Vomiting', 'Rectal irritation'] },
+  { medicineName: 'Bismuth subsalicylate (Pepto-Bismol)', sideEffects: ['Black/dark stools', 'Black tongue', 'Nausea', 'Constipation', 'Ringing in ears'] },
+  { medicineName: 'Bisoprolol', sideEffects: ['Tiredness', 'Cold hands/feet', 'Dizziness', 'Slow heartbeat', 'Nausea', 'Diarrhoea', 'Headache', 'Sleep disturbances'] },
+  { medicineName: 'Brinzolamide', sideEffects: ['Blurred vision', 'Eye irritation', 'Bitter taste', 'Headache', 'Nausea', 'Eye pain'] },
+  { medicineName: 'Budesonide inhaler', sideEffects: ['Thrush in mouth/throat', 'Hoarse voice', 'Cough', 'Headache', 'Skin bruising (high doses)'] },
+  { medicineName: 'Budesonide nasal spray', sideEffects: ['Nosebleeds', 'Dry/irritated nose', 'Nasal crusting', 'Headache', 'Unpleasant smell or taste'] },
+  { medicineName: 'Budesonide rectal foam', sideEffects: ['Local irritation', 'Rectal bleeding', 'Nausea', 'Headache', 'Adrenal suppression (long-term)'] },
+  { medicineName: 'Bumetanide', sideEffects: ['Increased urination', 'Dizziness', 'Low blood pressure', 'Muscle cramps', 'Low potassium', 'Nausea', 'Thirst'] },
+  { medicineName: 'Buprenorphine', sideEffects: ['Nausea', 'Vomiting', 'Constipation', 'Dizziness', 'Drowsiness', 'Sweating', 'Headache', 'Dry mouth'] },
+  { medicineName: 'Buscopan (hyoscine butylbromide)', sideEffects: ['Dry mouth', 'Constipation', 'Blurred vision', 'Difficulty urinating', 'Flushing', 'Fast heartbeat'] },
+  { medicineName: 'Calcipotriol', sideEffects: ['Skin irritation', 'Burning', 'Itching', 'Redness', 'Rash', 'Worsening of psoriasis'] },
+  { medicineName: 'Candesartan', sideEffects: ['Dizziness', 'Headache', 'Back pain', 'Upper respiratory infection', 'Low blood pressure', 'Raised potassium', 'Kidney function changes'] },
+  { medicineName: 'Carbamazepine', sideEffects: ['Dizziness', 'Drowsiness', 'Nausea', 'Vomiting', 'Unsteadiness', 'Blurred/double vision', 'Skin rash', 'Low sodium levels'] },
+  { medicineName: 'Carbimazole', sideEffects: ['Nausea', 'Headache', 'Joint pain', 'Skin rash', 'Hair loss', 'Itching', 'Agranulocytosis (rare)'] },
+  { medicineName: 'Carbocisteine', sideEffects: ['Nausea', 'Diarrhoea', 'Stomach upset', 'Skin rash'] },
+  { medicineName: 'Carmellose sodium eye drops', sideEffects: ['Temporary blurred vision', 'Eye discomfort', 'Sticky eyelids'] },
+  { medicineName: 'Carvedilol', sideEffects: ['Dizziness', 'Fatigue', 'Low blood pressure', 'Slow heartbeat', 'Diarrhoea', 'Nausea', 'Cold extremities', 'Weight gain', 'Fluid retention'] },
+  { medicineName: 'Cefalexin', sideEffects: ['Diarrhoea', 'Nausea', 'Vomiting', 'Stomach pain', 'Skin rash', 'Thrush', 'Headache'] },
+  { medicineName: 'Cetirizine', sideEffects: ['Drowsiness', 'Headache', 'Dry mouth', 'Dizziness', 'Nausea', 'Fatigue', 'Sore throat'] },
+  { medicineName: 'Chloramphenicol', sideEffects: ['Eye stinging/burning', 'Temporary blurred vision', 'Eye irritation', 'Allergic reactions'] },
+  { medicineName: 'Chlorhexidine', sideEffects: ['Teeth/tongue staining', 'Altered taste', 'Mouth irritation', 'Allergic reactions'] },
+  { medicineName: 'Chlorphenamine (Piriton)', sideEffects: ['Drowsiness', 'Dry mouth', 'Blurred vision', 'Difficulty urinating', 'Constipation', 'Dizziness', 'Confusion'] },
+  { medicineName: 'Cinnarizine', sideEffects: ['Drowsiness', 'Dry mouth', 'Headache', 'Stomach upset', 'Weight gain', 'Parkinson-like symptoms (long-term)'] },
+  { medicineName: 'Ciprofloxacin', sideEffects: ['Nausea', 'Diarrhoea', 'Vomiting', 'Stomach pain', 'Headache', 'Dizziness', 'Skin rash', 'Tendon problems', 'Photosensitivity'] },
+  { medicineName: 'Citalopram', sideEffects: ['Nausea', 'Dry mouth', 'Drowsiness', 'Dizziness', 'Sweating', 'Insomnia', 'Tremor', 'Sexual dysfunction', 'Headache'] },
+  { medicineName: 'Clarithromycin', sideEffects: ['Diarrhoea', 'Nausea', 'Vomiting', 'Stomach pain', 'Headache', 'Taste disturbance', 'Rash', 'Abnormal liver tests'] },
+  { medicineName: 'Clobetasol', sideEffects: ['Skin thinning', 'Stretch marks', 'Acne', 'Increased hair growth', 'Skin colour changes', 'Adrenal suppression'] },
+  { medicineName: 'Clobetasone', sideEffects: ['Skin thinning', 'Skin irritation', 'Stretch marks', 'Acne', 'Worsening of skin infections'] },
+  { medicineName: 'Clonazepam', sideEffects: ['Drowsiness', 'Dizziness', 'Unsteadiness', 'Confusion', 'Memory problems', 'Depression', 'Coordination problems', 'Dependence'] },
+  { medicineName: 'Clonidine', sideEffects: ['Dry mouth', 'Drowsiness', 'Dizziness', 'Constipation', 'Headache', 'Fatigue', 'Low blood pressure', 'Slow heartbeat'] },
+  { medicineName: 'Clopidogrel', sideEffects: ['Bruising', 'Nosebleeds', 'Stomach pain', 'Diarrhoea', 'Indigestion', 'Headache', 'Bleeding risk'] },
+  { medicineName: 'Clotrimazole cream', sideEffects: ['Skin irritation', 'Burning', 'Stinging', 'Redness', 'Rash', 'Blistering'] },
+  { medicineName: 'Clotrimazole for thrush (Canesten)', sideEffects: ['Local burning', 'Irritation', 'Stinging', 'Skin rash', 'Peeling'] },
+  { medicineName: 'Co-amoxiclav', sideEffects: ['Diarrhoea', 'Nausea', 'Vomiting', 'Stomach pain', 'Skin rash', 'Thrush', 'Liver problems'] },
+  { medicineName: 'Co-beneldopa', sideEffects: ['Nausea', 'Vomiting', 'Loss of appetite', 'Involuntary movements', 'Confusion', 'Low blood pressure', 'Dark urine'] },
+  { medicineName: 'Co-careldopa', sideEffects: ['Nausea', 'Involuntary movements', 'Confusion', 'Dizziness', 'Low blood pressure', 'Dark urine', 'Compulsive behaviours'] },
+  { medicineName: 'Co-codamol', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Drowsiness', 'Dizziness', 'Headache', 'Dry mouth', 'Addiction risk'] },
+  { medicineName: 'Codeine', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Drowsiness', 'Dizziness', 'Confusion', 'Addiction risk', 'Dry mouth'] },
+  { medicineName: 'Colchicine', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Muscle weakness', 'Numbness', 'Bone marrow suppression (overdose)'] },
+  { medicineName: 'Colecalciferol (Vitamin D3)', sideEffects: ['Nausea', 'Stomach pain', 'Constipation', 'High calcium levels (overdose)', 'Thirst', 'Frequent urination'] },
+  { medicineName: 'Combined HRT', sideEffects: ['Breast tenderness', 'Nausea', 'Headache', 'Mood changes', 'Irregular bleeding', 'Bloating', 'Weight changes', 'Skin irritation'] },
+  { medicineName: 'Contraceptive injection (medroxyprogesterone)', sideEffects: ['Irregular periods', 'Weight gain', 'Headache', 'Mood changes', 'Acne', 'Decreased bone density', 'Delayed return of fertility'] },
+  { medicineName: 'Cyanocobalamin (Vitamin B12)', sideEffects: ['Itching', 'Skin rash', 'Flushing', 'Nausea', 'Diarrhoea', 'Dizziness (injection)'] },
+  { medicineName: 'Cyclizine', sideEffects: ['Drowsiness', 'Dry mouth', 'Blurred vision', 'Constipation', 'Difficulty urinating', 'Headache', 'Dizziness'] },
+  { medicineName: 'Dapagliflozin', sideEffects: ['Genital thrush', 'Urinary tract infections', 'Increased urination', 'Dizziness', 'Back pain', 'Nausea', 'Low blood pressure'] },
+  { medicineName: 'Decongestants', sideEffects: ['Insomnia', 'Headache', 'Dry mouth', 'Nausea', 'Restlessness', 'Increased heart rate', 'High blood pressure', 'Rebound congestion'] },
+  { medicineName: 'Dexamethasone eye drops', sideEffects: ['Eye stinging', 'Blurred vision', 'Increased eye pressure', 'Cataracts (long-term)', 'Worsening of eye infections'] },
+  { medicineName: 'Dexamethasone tablets', sideEffects: ['Weight gain', 'Increased appetite', 'Mood changes', 'Insomnia', 'Fluid retention', 'High blood sugar', 'Increased infection risk', 'Osteoporosis'] },
+  { medicineName: 'Diazepam', sideEffects: ['Drowsiness', 'Confusion', 'Dizziness', 'Unsteadiness', 'Memory problems', 'Dependence', 'Low blood pressure', 'Muscle weakness'] },
+  { medicineName: 'Diclofenac', sideEffects: ['Stomach pain', 'Nausea', 'Diarrhoea', 'Indigestion', 'Headache', 'Dizziness', 'Skin rash', 'Fluid retention', 'Increased cardiovascular risk'] },
+  { medicineName: 'Digoxin', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Loss of appetite', 'Visual disturbances (yellow/green tinge)', 'Dizziness', 'Slow heartbeat', 'Arrhythmias'] },
+  { medicineName: 'Dihydrocodeine', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Dizziness', 'Drowsiness', 'Dry mouth', 'Addiction risk', 'Sweating'] },
+  { medicineName: 'Diltiazem', sideEffects: ['Headache', 'Dizziness', 'Flushing', 'Ankle swelling', 'Nausea', 'Constipation', 'Slow heartbeat', 'Low blood pressure', 'Skin rash'] },
+  { medicineName: 'Diphenhydramine', sideEffects: ['Drowsiness', 'Dry mouth', 'Blurred vision', 'Constipation', 'Difficulty urinating', 'Dizziness', 'Confusion'] },
+  { medicineName: 'Dipyridamole', sideEffects: ['Headache', 'Diarrhoea', 'Nausea', 'Vomiting', 'Stomach pain', 'Dizziness', 'Low blood pressure', 'Rash', 'Flushing'] },
+  { medicineName: 'Docusate', sideEffects: ['Stomach cramps', 'Diarrhoea', 'Nausea', 'Throat irritation'] },
+  { medicineName: 'Domperidone', sideEffects: ['Dry mouth', 'Headache', 'Diarrhoea', 'Reduced libido', 'Breast enlargement', 'Irregular heart rhythm'] },
+  { medicineName: 'Donepezil', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Headache', 'Dizziness', 'Fatigue', 'Insomnia', 'Muscle cramps', 'Loss of appetite', 'Slow heartbeat'] },
+  { medicineName: 'Doxazosin', sideEffects: ['Dizziness', 'Headache', 'Fatigue', 'Nausea', 'Low blood pressure on standing', 'Swollen ankles', 'Palpitations'] },
+  { medicineName: 'Doxycycline', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Heartburn', 'Photosensitivity', 'Thrush', 'Oesophageal irritation', 'Skin rash'] },
+  { medicineName: 'Duloxetine', sideEffects: ['Nausea', 'Dry mouth', 'Constipation', 'Diarrhoea', 'Headache', 'Dizziness', 'Drowsiness', 'Insomnia', 'Sweating', 'Sexual dysfunction'] },
+  { medicineName: 'Edoxaban', sideEffects: ['Bruising', 'Nosebleeds', 'Anaemia', 'Bleeding', 'Nausea', 'Skin rash', 'Raised liver enzymes'] },
+  { medicineName: 'Empagliflozin', sideEffects: ['Genital thrush', 'Urinary tract infections', 'Increased urination', 'Dizziness', 'Nausea', 'Low blood pressure'] },
+  { medicineName: 'Enalapril', sideEffects: ['Dry cough', 'Dizziness', 'Headache', 'Fatigue', 'Nausea', 'Low blood pressure', 'Raised potassium', 'Kidney function changes'] },
+  { medicineName: 'Eplerenone', sideEffects: ['Dizziness', 'High potassium', 'Diarrhoea', 'Nausea', 'Headache', 'Gynaecomastia (men)', 'Kidney function changes'] },
+  { medicineName: 'Erythromycin', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach cramps', 'Skin rash', 'Liver problems', 'Hearing problems (high doses)'] },
+  { medicineName: 'Escitalopram', sideEffects: ['Nausea', 'Dry mouth', 'Drowsiness', 'Insomnia', 'Sweating', 'Dizziness', 'Sexual dysfunction', 'Headache', 'Tremor'] },
+  { medicineName: 'Esomeprazole', sideEffects: ['Headache', 'Nausea', 'Diarrhoea', 'Stomach pain', 'Constipation', 'Wind', 'Low magnesium (long-term)'] },
+  { medicineName: 'Ezetimibe', sideEffects: ['Diarrhoea', 'Stomach pain', 'Headache', 'Fatigue', 'Muscle pain', 'Raised liver enzymes', 'Joint pain'] },
+  { medicineName: 'Felodipine', sideEffects: ['Headache', 'Flushing', 'Dizziness', 'Ankle swelling', 'Palpitations', 'Nausea', 'Fatigue'] },
+  { medicineName: 'Fentanyl', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Drowsiness', 'Dizziness', 'Sweating', 'Headache', 'Confusion', 'Addiction risk', 'Respiratory depression'] },
+  { medicineName: 'Ferrous fumarate', sideEffects: ['Constipation', 'Dark stools', 'Nausea', 'Stomach pain', 'Diarrhoea', 'Heartburn'] },
+  { medicineName: 'Ferrous sulfate', sideEffects: ['Constipation', 'Dark stools', 'Nausea', 'Stomach pain', 'Diarrhoea', 'Heartburn'] },
+  { medicineName: 'Fexofenadine', sideEffects: ['Headache', 'Nausea', 'Dizziness', 'Drowsiness', 'Fatigue', 'Back pain', 'Diarrhoea'] },
+  { medicineName: 'Finasteride', sideEffects: ['Reduced sex drive', 'Erectile dysfunction', 'Ejaculation problems', 'Breast tenderness/enlargement', 'Depression'] },
+  { medicineName: 'Flucloxacillin', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Skin rash', 'Thrush', 'Liver problems'] },
+  { medicineName: 'Fluconazole', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Headache', 'Skin rash', 'Liver problems'] },
+  { medicineName: 'Fluoxetine (Prozac)', sideEffects: ['Nausea', 'Headache', 'Insomnia', 'Drowsiness', 'Dizziness', 'Anxiety', 'Dry mouth', 'Sexual dysfunction', 'Sweating', 'Diarrhoea'] },
+  { medicineName: 'Fluticasone inhaler', sideEffects: ['Thrush in mouth/throat', 'Hoarse voice', 'Headache', 'Cough', 'Bruising (high doses)'] },
+  { medicineName: 'Fluticasone nasal spray', sideEffects: ['Nosebleeds', 'Dry/sore nose', 'Headache', 'Unpleasant taste or smell'] },
+  { medicineName: 'Fluticasone skin cream', sideEffects: ['Skin thinning', 'Stretch marks', 'Acne', 'Increased hair growth', 'Worsening of skin infections'] },
+  { medicineName: 'Folic acid', sideEffects: ['Nausea', 'Loss of appetite', 'Bloating', 'Wind (high doses)', 'Allergic reactions'] },
+  { medicineName: 'Furosemide', sideEffects: ['Increased urination', 'Low potassium', 'Dizziness', 'Dehydration', 'Muscle cramps', 'Low blood pressure', 'Thirst', 'Nausea'] },
+  { medicineName: 'Fusidic acid (Fucidin)', sideEffects: ['Skin irritation', 'Redness', 'Rash', 'Burning', 'Stinging'] },
+  { medicineName: 'Fybogel (ispaghula husk)', sideEffects: ['Bloating', 'Wind', 'Stomach cramps', 'Nausea', 'Choking if not taken with enough water'] },
+  { medicineName: 'Gabapentin', sideEffects: ['Dizziness', 'Drowsiness', 'Coordination problems', 'Fatigue', 'Nausea', 'Vision changes', 'Weight gain', 'Memory problems'] },
+  { medicineName: 'Gaviscon', sideEffects: ['Wind', 'Bloating', 'Nausea (uncommon)', 'High sodium in regular large doses'] },
+  { medicineName: 'Gliclazide', sideEffects: ['Low blood sugar (hypoglycaemia)', 'Nausea', 'Diarrhoea', 'Constipation', 'Stomach pain', 'Skin rash'] },
+  { medicineName: 'Glyceryl trinitrate (GTN)', sideEffects: ['Headache', 'Dizziness', 'Flushing', 'Low blood pressure', 'Fainting', 'Rapid heartbeat', 'Skin irritation (patches)'] },
+  { medicineName: 'Haloperidol', sideEffects: ['Drowsiness', 'Dizziness', 'Restlessness', 'Muscle stiffness/tremor', 'Dry mouth', 'Constipation', 'Blurred vision', 'Weight gain', 'Tardive dyskinesia'] },
+  { medicineName: 'Hormone replacement therapy (HRT)', sideEffects: ['Breast tenderness', 'Nausea', 'Headache', 'Irregular bleeding', 'Mood changes', 'Bloating', 'Fluid retention', 'Leg cramps', 'Skin irritation'] },
+  { medicineName: 'Hydrocortisone', sideEffects: ['Weight gain', 'Increased appetite', 'Mood changes', 'Insomnia', 'Skin thinning', 'High blood sugar', 'Increased infection risk'] },
+  { medicineName: 'Hydrocortisone buccal tablets', sideEffects: ['Taste disturbance', 'Mouth irritation', 'Oral thrush'] },
+  { medicineName: 'Hydrocortisone for skin', sideEffects: ['Skin thinning', 'Stretch marks', 'Acne', 'Worsening of infections', 'Increased hair growth'] },
+  { medicineName: 'Hydroxocobalamin', sideEffects: ['Itching', 'Skin rash', 'Nausea', 'Dizziness', 'Hot flush', 'Acne (injection)', 'Headache'] },
+  { medicineName: 'Hydroxychloroquine', sideEffects: ['Nausea', 'Stomach pain', 'Diarrhoea', 'Skin rash', 'Headache', 'Vision problems (retinal damage with long-term use)'] },
+  { medicineName: 'Hyoscine hydrobromide (Kwells)', sideEffects: ['Dry mouth', 'Drowsiness', 'Blurred vision', 'Dizziness', 'Difficulty urinating', 'Constipation'] },
+  { medicineName: 'Ibuprofen (adults)', sideEffects: ['Stomach pain', 'Nausea', 'Indigestion', 'Diarrhoea', 'Heartburn', 'Dizziness', 'Headache', 'Fluid retention', 'Increased cardiovascular risk'] },
+  { medicineName: 'Ibuprofen (children)', sideEffects: ['Stomach pain', 'Nausea', 'Diarrhoea', 'Headache', 'Indigestion', 'Skin rash', 'Dizziness'] },
+  { medicineName: 'Ibuprofen and codeine', sideEffects: ['Stomach pain', 'Nausea', 'Indigestion', 'Constipation', 'Dizziness', 'Drowsiness', 'Headache', 'Bleeding risk', 'Addiction risk (codeine)'] },
+  { medicineName: 'Indapamide', sideEffects: ['Low potassium', 'Low sodium', 'Dizziness', 'Headache', 'Muscle cramps', 'Nausea', 'Photosensitivity', 'Rash'] },
+  { medicineName: 'Insulin', sideEffects: ['Low blood sugar (hypoglycaemia)', 'Weight gain', 'Injection site reactions', 'Oedema'] },
+  { medicineName: 'Irbesartan', sideEffects: ['Dizziness', 'Headache', 'Nausea', 'Fatigue', 'High potassium', 'Kidney function changes', 'Low blood pressure'] },
+  { medicineName: 'Isosorbide mononitrate', sideEffects: ['Headache', 'Dizziness', 'Flushing', 'Low blood pressure', 'Rapid heartbeat', 'Nausea', 'Fainting'] },
+  { medicineName: 'Isotretinoin (Roaccutane)', sideEffects: ['Dry lips/skin', 'Nosebleeds', 'Dry eyes', 'Joint pain', 'Muscle pain', 'Increased triglycerides', 'Liver problems', 'Mood changes', 'Hair thinning'] },
+  { medicineName: 'Ketoconazole', sideEffects: ['Nausea', 'Vomiting', 'Stomach pain', 'Headache', 'Itching', 'Skin rash', 'Liver problems', 'Adrenal suppression'] },
+  { medicineName: 'Lactulose', sideEffects: ['Bloating', 'Wind', 'Stomach cramps', 'Nausea', 'Diarrhoea (excessive dose)'] },
+  { medicineName: 'Lamotrigine', sideEffects: ['Skin rash (including serious)', 'Dizziness', 'Headache', 'Double vision', 'Nausea', 'Blurred vision', 'Tiredness', 'Coordination problems'] },
+  { medicineName: 'Lansoprazole', sideEffects: ['Headache', 'Diarrhoea', 'Constipation', 'Nausea', 'Stomach pain', 'Wind', 'Low magnesium (long-term)'] },
+  { medicineName: 'Latanoprost', sideEffects: ['Darkening of iris/eyelashes', 'Increased eyelash growth', 'Eye redness', 'Stinging', 'Blurred vision'] },
+  { medicineName: 'Laxatives', sideEffects: ['Diarrhoea', 'Stomach cramps', 'Bloating', 'Wind', 'Nausea', 'Electrolyte imbalance (excessive use)'] },
+  { medicineName: 'Lercanidipine', sideEffects: ['Headache', 'Flushing', 'Dizziness', 'Ankle swelling', 'Palpitations', 'Fatigue', 'Nausea'] },
+  { medicineName: 'Letrozole', sideEffects: ['Hot flushes', 'Joint/muscle pain', 'Fatigue', 'Nausea', 'Headache', 'Osteoporosis', 'Dizziness', 'Insomnia', 'Weight gain'] },
+  { medicineName: 'Levetiracetam', sideEffects: ['Drowsiness', 'Dizziness', 'Headache', 'Nausea', 'Mood changes', 'Aggression', 'Depression', 'Coordination problems'] },
+  { medicineName: 'Levothyroxine', sideEffects: ['Palpitations', 'Tremor', 'Headache', 'Flushing', 'Weight loss', 'Insomnia', 'Diarrhoea', 'Excessive sweating'] },
+  { medicineName: 'Lidocaine skin cream', sideEffects: ['Skin numbness', 'Local irritation', 'Skin redness', 'Swelling', 'Itching'] },
+  { medicineName: 'Linagliptin', sideEffects: ['Nasopharyngitis', 'Cough', 'Diarrhoea', 'Pancreatitis (rare)', 'Joint pain'] },
+  { medicineName: 'Lisinopril', sideEffects: ['Dry cough', 'Dizziness', 'Headache', 'Low blood pressure', 'Raised potassium', 'Fatigue', 'Nausea', 'Kidney function changes'] },
+  { medicineName: 'Lithium', sideEffects: ['Tremor', 'Increased thirst', 'Increased urination', 'Nausea', 'Diarrhoea', 'Weight gain', 'Cognitive problems', 'Thyroid problems'] },
+  { medicineName: 'Loperamide (Imodium)', sideEffects: ['Constipation', 'Stomach cramps', 'Nausea', 'Dizziness', 'Headache', 'Skin rash'] },
+  { medicineName: 'Loratadine (Clarityn)', sideEffects: ['Headache', 'Drowsiness', 'Dry mouth', 'Nausea', 'Fatigue'] },
+  { medicineName: 'Lorazepam', sideEffects: ['Drowsiness', 'Dizziness', 'Confusion', 'Memory problems', 'Low blood pressure', 'Dependence', 'Breathing difficulties'] },
+  { medicineName: 'Losartan', sideEffects: ['Dizziness', 'Headache', 'Low blood pressure', 'Raised potassium', 'Kidney function changes', 'Back pain', 'Fatigue'] },
+  { medicineName: 'Lymecycline', sideEffects: ['Nausea', 'Stomach upset', 'Photosensitivity', 'Oesophageal irritation', 'Thrush', 'Skin rash'] },
+  { medicineName: 'Macrogol', sideEffects: ['Bloating', 'Wind', 'Stomach cramps', 'Nausea', 'Diarrhoea'] },
+  { medicineName: 'Mebendazole', sideEffects: ['Stomach pain', 'Diarrhoea', 'Wind', 'Nausea', 'Dizziness', 'Headache', 'Skin rash'] },
+  { medicineName: 'Mebeverine', sideEffects: ['Skin rash', 'Hives', 'Itching', 'Angioedema (rare)'] },
+  { medicineName: 'Medroxyprogesterone tablets', sideEffects: ['Irregular periods', 'Weight gain', 'Headache', 'Mood changes', 'Acne', 'Nausea', 'Breast tenderness'] },
+  { medicineName: 'Melatonin', sideEffects: ['Drowsiness', 'Headache', 'Dizziness', 'Nausea', 'Irritability', 'Stomach pain', 'Dry mouth'] },
+  { medicineName: 'Memantine', sideEffects: ['Dizziness', 'Headache', 'Constipation', 'Drowsiness', 'High blood pressure', 'Breathing difficulties'] },
+  { medicineName: 'Mesalazine', sideEffects: ['Headache', 'Nausea', 'Diarrhoea', 'Stomach pain', 'Rash', 'Worsening of colitis (rare)', 'Kidney problems (rare)'] },
+  { medicineName: 'Metformin', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Loss of appetite', 'Metallic taste', 'Lactic acidosis (rare)'] },
+  { medicineName: 'Methadone', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Drowsiness', 'Sweating', 'Dry mouth', 'Dizziness', 'Addiction', 'Respiratory depression'] },
+  { medicineName: 'Methotrexate', sideEffects: ['Nausea', 'Vomiting', 'Mouth sores', 'Fatigue', 'Increased infection risk', 'Liver problems', 'Lung problems', 'Hair loss'] },
+  { medicineName: 'Methylphenidate (adults)', sideEffects: ['Decreased appetite', 'Insomnia', 'Headache', 'Stomach pain', 'Nausea', 'Dry mouth', 'Anxiety', 'Increased heart rate', 'Increased blood pressure'] },
+  { medicineName: 'Methylphenidate (children)', sideEffects: ['Decreased appetite', 'Stomach pain', 'Nausea', 'Insomnia', 'Headache', 'Irritability', 'Increased heart rate', 'Increased blood pressure'] },
+  { medicineName: 'Metoclopramide', sideEffects: ['Drowsiness', 'Restlessness', 'Muscle stiffness', 'Diarrhoea', 'Headache', 'Involuntary movements (tardive dyskinesia)'] },
+  { medicineName: 'Metoprolol', sideEffects: ['Tiredness', 'Cold hands/feet', 'Slow heartbeat', 'Dizziness', 'Nausea', 'Diarrhoea', 'Sleep disturbances', 'Shortness of breath'] },
+  { medicineName: 'Metronidazole', sideEffects: ['Nausea', 'Vomiting', 'Metallic taste', 'Diarrhoea', 'Headache', 'Loss of appetite', 'Dark urine', 'Skin rash', 'Alcohol intolerance'] },
+  { medicineName: 'Mirabegron', sideEffects: ['Urinary tract infection', 'Fast heartbeat', 'Nausea', 'Constipation', 'Dizziness', 'Headache', 'High blood pressure', 'Joint pain'] },
+  { medicineName: 'Mirtazapine', sideEffects: ['Increased appetite', 'Weight gain', 'Drowsiness', 'Dry mouth', 'Constipation', 'Dizziness', 'Headache', 'Swollen ankles'] },
+  { medicineName: 'Mometasone (skin)', sideEffects: ['Skin thinning', 'Stretch marks', 'Acne', 'Skin irritation', 'Worsening of infections'] },
+  { medicineName: 'Mometasone inhaler', sideEffects: ['Thrush in mouth/throat', 'Hoarse voice', 'Headache', 'Cough'] },
+  { medicineName: 'Mometasone nasal spray', sideEffects: ['Nosebleeds', 'Headache', 'Nasal irritation', 'Dry nose', 'Sore throat', 'Unpleasant taste/smell'] },
+  { medicineName: 'Montelukast', sideEffects: ['Headache', 'Stomach pain', 'Diarrhoea', 'Nausea', 'Mood/behaviour changes', 'Sleep disturbances', 'Respiratory infections'] },
+  { medicineName: 'Morphine', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Drowsiness', 'Dizziness', 'Confusion', 'Dry mouth', 'Sweating', 'Addiction risk', 'Respiratory depression'] },
+  { medicineName: 'Naproxen', sideEffects: ['Stomach pain', 'Nausea', 'Heartburn', 'Diarrhoea', 'Headache', 'Dizziness', 'Fluid retention', 'Increased cardiovascular risk'] },
+  { medicineName: 'Nefopam', sideEffects: ['Nausea', 'Vomiting', 'Sweating', 'Dry mouth', 'Dizziness', 'Drowsiness', 'Urinary retention', 'Blurred vision', 'Rapid heartbeat'] },
+  { medicineName: 'Nicorandil', sideEffects: ['Headache', 'Flushing', 'Nausea', 'Dizziness', 'Weakness', 'Mouth/skin ulcers (long-term)', 'Low blood pressure'] },
+  { medicineName: 'Nifedipine', sideEffects: ['Headache', 'Flushing', 'Ankle swelling', 'Dizziness', 'Palpitations', 'Nausea', 'Stomach pain', 'Constipation'] },
+  { medicineName: 'Nitrofurantoin', sideEffects: ['Nausea', 'Vomiting', 'Loss of appetite', 'Headache', 'Dizziness', 'Skin rash', 'Pulmonary reactions (rare)', 'Liver problems'] },
+  { medicineName: 'Nortriptyline', sideEffects: ['Dry mouth', 'Constipation', 'Drowsiness', 'Blurred vision', 'Dizziness', 'Weight gain', 'Difficulty urinating', 'Low blood pressure'] },
+  { medicineName: 'NSAIDs', sideEffects: ['Stomach pain', 'Nausea', 'Indigestion', 'Diarrhoea', 'Headache', 'Dizziness', 'Fluid retention', 'Increased cardiovascular risk', 'GI bleed risk'] },
+  { medicineName: 'Nystatin', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Skin irritation (topical)', 'Skin rash'] },
+  { medicineName: 'Oestrogen (tablets/patches/gel)', sideEffects: ['Breast tenderness', 'Nausea', 'Headache', 'Bloating', 'Mood changes', 'Irregular bleeding', 'Skin irritation'] },
+  { medicineName: 'Olanzapine', sideEffects: ['Weight gain', 'Increased appetite', 'Drowsiness', 'Dizziness', 'Dry mouth', 'Constipation', 'Raised blood sugar/cholesterol', 'Low blood pressure'] },
+  { medicineName: 'Omeprazole', sideEffects: ['Headache', 'Diarrhoea', 'Constipation', 'Nausea', 'Stomach pain', 'Wind', 'Low magnesium (long-term)', 'Increased infection risk'] },
+  { medicineName: 'Oxybutynin', sideEffects: ['Dry mouth', 'Constipation', 'Blurred vision', 'Difficulty urinating', 'Drowsiness', 'Dizziness', 'Confusion', 'Nausea', 'Flushing'] },
+  { medicineName: 'Oxycodone', sideEffects: ['Constipation', 'Nausea', 'Vomiting', 'Drowsiness', 'Dizziness', 'Confusion', 'Dry mouth', 'Sweating', 'Addiction risk', 'Respiratory depression'] },
+  { medicineName: 'Pantoprazole', sideEffects: ['Headache', 'Diarrhoea', 'Constipation', 'Nausea', 'Stomach pain', 'Wind', 'Low magnesium (long-term)'] },
+  { medicineName: 'Paracetamol', sideEffects: ['Skin rash', 'Low blood pressure', 'Liver damage (overdose)', 'Blood disorders (rare)', 'Allergic reactions (rare)'] },
+  { medicineName: 'Paroxetine', sideEffects: ['Nausea', 'Dry mouth', 'Drowsiness', 'Insomnia', 'Sweating', 'Dizziness', 'Sexual dysfunction', 'Headache', 'Withdrawal reactions'] },
+  { medicineName: 'Peppermint oil', sideEffects: ['Heartburn', 'Skin rash', 'Mouth irritation', 'Allergic reactions', 'Perianal burning'] },
+  { medicineName: 'Perindopril', sideEffects: ['Dry cough', 'Dizziness', 'Headache', 'Low blood pressure', 'Fatigue', 'Nausea', 'Raised potassium', 'Kidney function changes'] },
+  { medicineName: 'Phenoxymethylpenicillin', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Skin rash', 'Thrush', 'Allergic reactions'] },
+  { medicineName: 'Pravastatin', sideEffects: ['Muscle pain', 'Headache', 'Nausea', 'Diarrhoea', 'Constipation', 'Raised liver enzymes', 'Sleep disturbances'] },
+  { medicineName: 'Prednisolone', sideEffects: ['Weight gain', 'Increased appetite', 'Mood changes', 'Insomnia', 'High blood sugar', 'Osteoporosis', 'Increased infection risk', 'Fluid retention'] },
+  { medicineName: 'Pregabalin', sideEffects: ['Dizziness', 'Drowsiness', 'Weight gain', 'Blurred vision', 'Coordination problems', 'Dry mouth', 'Memory problems', 'Dependence'] },
+  { medicineName: 'Prochlorperazine', sideEffects: ['Drowsiness', 'Dizziness', 'Dry mouth', 'Constipation', 'Blurred vision', 'Movement problems', 'Low blood pressure', 'Tardive dyskinesia'] },
+  { medicineName: 'Promethazine (Phenergan)', sideEffects: ['Drowsiness', 'Dry mouth', 'Blurred vision', 'Constipation', 'Difficulty urinating', 'Dizziness', 'Confusion', 'Light sensitivity'] },
+  { medicineName: 'Propranolol', sideEffects: ['Tiredness', 'Cold hands/feet', 'Slow heartbeat', 'Dizziness', 'Nausea', 'Sleep disturbances', 'Vivid dreams', 'Shortness of breath'] },
+  { medicineName: 'Pseudoephedrine (Sudafed)', sideEffects: ['Insomnia', 'Headache', 'Nausea', 'Dry mouth', 'Restlessness', 'Fast heartbeat', 'Raised blood pressure', 'Dizziness'] },
+  { medicineName: 'Quetiapine', sideEffects: ['Drowsiness', 'Dizziness', 'Dry mouth', 'Constipation', 'Weight gain', 'Raised blood sugar/cholesterol', 'Low blood pressure', 'Headache'] },
+  { medicineName: 'Ramipril', sideEffects: ['Dry cough', 'Dizziness', 'Headache', 'Low blood pressure', 'Fatigue', 'Raised potassium', 'Nausea', 'Kidney function changes'] },
+  { medicineName: 'Ranitidine', sideEffects: ['Headache', 'Constipation', 'Diarrhoea', 'Nausea', 'Stomach pain', 'Dizziness', 'Rash'] },
+  { medicineName: 'Risperidone', sideEffects: ['Weight gain', 'Drowsiness', 'Dizziness', 'Headache', 'Nausea', 'Constipation', 'Involuntary movements', 'Raised prolactin', 'Low blood pressure'] },
+  { medicineName: 'Rivaroxaban (Xarelto)', sideEffects: ['Bruising', 'Anaemia', 'Nausea', 'Bleeding', 'Dizziness', 'Headache', 'Raised liver enzymes'] },
+  { medicineName: 'Ropinirole', sideEffects: ['Nausea', 'Dizziness', 'Drowsiness', 'Vomiting', 'Low blood pressure', 'Hallucinations', 'Compulsive behaviours', 'Leg swelling'] },
+  { medicineName: 'Rosuvastatin', sideEffects: ['Muscle pain', 'Headache', 'Nausea', 'Constipation', 'Diarrhoea', 'Stomach pain', 'Raised liver enzymes', 'Weakness'] },
+  { medicineName: 'Salbutamol inhaler', sideEffects: ['Tremor', 'Palpitations', 'Headache', 'Muscle cramps', 'Restlessness', 'Low potassium (high doses)'] },
+  { medicineName: 'Senna', sideEffects: ['Stomach cramps', 'Diarrhoea', 'Nausea', 'Dehydration', 'Electrolyte imbalance (overuse)', 'Discolouration of urine'] },
+  { medicineName: 'Sertraline', sideEffects: ['Nausea', 'Dry mouth', 'Diarrhoea', 'Insomnia', 'Drowsiness', 'Sweating', 'Dizziness', 'Sexual dysfunction', 'Headache', 'Tremor'] },
+  { medicineName: 'Sildenafil (Viagra)', sideEffects: ['Headache', 'Flushing', 'Indigestion', 'Nasal congestion', 'Visual disturbances', 'Dizziness', 'Low blood pressure'] },
+  { medicineName: 'Simeticone', sideEffects: ['Occasional constipation', 'Occasional diarrhoea', 'Nausea'] },
+  { medicineName: 'Simvastatin', sideEffects: ['Muscle pain', 'Headache', 'Nausea', 'Diarrhoea', 'Constipation', 'Raised liver enzymes', 'Sleep problems', 'Abdominal pain'] },
+  { medicineName: 'Sitagliptin', sideEffects: ['Nasopharyngitis', 'Upper respiratory tract infection', 'Headache', 'Diarrhoea', 'Nausea', 'Pancreatitis (rare)', 'Joint pain'] },
+  { medicineName: 'Sodium valproate', sideEffects: ['Nausea', 'Tremor', 'Weight gain', 'Hair loss', 'Drowsiness', 'Liver problems', 'Pancreatitis', 'Birth defects (in pregnancy)'] },
+  { medicineName: 'Solifenacin', sideEffects: ['Dry mouth', 'Constipation', 'Blurred vision', 'Difficulty urinating', 'Nausea', 'Dizziness', 'Fatigue', 'Urinary tract infection'] },
+  { medicineName: 'Sotalol', sideEffects: ['Fatigue', 'Dizziness', 'Slow heartbeat', 'Low blood pressure', 'Breathing difficulties', 'Nausea', 'Irregular heartbeat (pro-arrhythmic)'] },
+  { medicineName: 'Spironolactone', sideEffects: ['High potassium', 'Nausea', 'Dizziness', 'Headache', 'Breast tenderness/enlargement', 'Menstrual irregularities', 'Skin rash'] },
+  { medicineName: 'Statins', sideEffects: ['Muscle pain', 'Headache', 'Nausea', 'Diarrhoea', 'Constipation', 'Raised liver enzymes', 'Increased blood sugar'] },
+  { medicineName: 'Steroids', sideEffects: ['Weight gain', 'Mood changes', 'High blood sugar', 'Osteoporosis', 'Increased infection risk', 'Fluid retention', 'Skin thinning', 'Cataracts'] },
+  { medicineName: 'Sulfasalazine', sideEffects: ['Nausea', 'Vomiting', 'Stomach pain', 'Headache', 'Skin rash', 'Loss of appetite', 'Reduced sperm count', 'Discolouration of urine/skin'] },
+  { medicineName: 'Sumatriptan', sideEffects: ['Tingling', 'Dizziness', 'Flushing', 'Fatigue', 'Chest tightness', 'Nausea', 'Pain/tightness sensations', 'Drowsiness'] },
+  { medicineName: 'Tadalafil', sideEffects: ['Headache', 'Indigestion', 'Back pain', 'Muscle pain', 'Flushing', 'Nasal congestion', 'Dizziness', 'Low blood pressure'] },
+  { medicineName: 'Tamsulosin', sideEffects: ['Dizziness', 'Low blood pressure', 'Abnormal ejaculation', 'Headache', 'Palpitations', 'Nasal congestion', 'Drowsiness'] },
+  { medicineName: 'Terbinafine', sideEffects: ['Nausea', 'Diarrhoea', 'Stomach pain', 'Skin rash', 'Headache', 'Loss of taste', 'Liver problems (rare)', 'Joint pain'] },
+  { medicineName: 'Thiamine (Vitamin B1)', sideEffects: ['Skin irritation (injection)', 'Rash', 'Itching', 'Allergic reactions (rare)'] },
+  { medicineName: 'Tibolone', sideEffects: ['Vaginal bleeding/spotting', 'Breast pain', 'Headache', 'Dizziness', 'Nausea', 'Skin rash', 'Weight changes'] },
+  { medicineName: 'Ticagrelor', sideEffects: ['Bruising', 'Bleeding', 'Shortness of breath', 'Headache', 'Dizziness', 'Nausea', 'Diarrhoea', 'Increased uric acid'] },
+  { medicineName: 'Timolol eye drops', sideEffects: ['Eye stinging', 'Dry eyes', 'Vision changes', 'Bradycardia', 'Fatigue', 'Dizziness', 'Shortness of breath', 'Cold extremities'] },
+  { medicineName: 'Tiotropium inhaler', sideEffects: ['Dry mouth', 'Constipation', 'Urinary retention', 'Blurred vision', 'Headache', 'Dizziness', 'Cough', 'Throat irritation'] },
+  { medicineName: 'Tolterodine', sideEffects: ['Dry mouth', 'Constipation', 'Headache', 'Dizziness', 'Blurred vision', 'Difficulty urinating', 'Nausea', 'Abdominal pain'] },
+  { medicineName: 'Topiramate', sideEffects: ['Tingling', 'Cognitive problems', 'Dizziness', 'Drowsiness', 'Weight loss', 'Nausea', 'Kidney stones', 'Vision problems', 'Mood changes'] },
+  { medicineName: 'Tramadol', sideEffects: ['Nausea', 'Dizziness', 'Constipation', 'Headache', 'Drowsiness', 'Vomiting', 'Sweating', 'Dry mouth', 'Confusion', 'Addiction risk'] },
+  { medicineName: 'Tranexamic acid', sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Stomach pain', 'Headache', 'Dizziness', 'Blood clot risk (rare)'] },
+  { medicineName: 'Trastuzumab (Herceptin)', sideEffects: ['Fatigue', 'Nausea', 'Diarrhoea', 'Headache', 'Fever', 'Chills', 'Infusion reactions', 'Heart problems', 'Joint/muscle pain'] },
+  { medicineName: 'Trazodone', sideEffects: ['Drowsiness', 'Dizziness', 'Dry mouth', 'Constipation', 'Headache', 'Nausea', 'Blurred vision', 'Low blood pressure', 'Priapism (rare)'] },
+  { medicineName: 'Trimethoprim', sideEffects: ['Nausea', 'Vomiting', 'Stomach pain', 'Skin rash', 'Itching', 'Headache', 'Raised potassium'] },
+  { medicineName: 'Utrogestan (micronised progesterone)', sideEffects: ['Dizziness', 'Drowsiness', 'Nausea', 'Headache', 'Mood changes', 'Breast tenderness', 'Bloating', 'Vaginal discharge', 'Irregular bleeding'] },
+  { medicineName: 'Vaginal oestrogen', sideEffects: ['Local irritation', 'Vaginal discharge', 'Breast tenderness', 'Nausea', 'Headache', 'Leg cramps'] },
+  { medicineName: 'Valproic acid', sideEffects: ['Nausea', 'Tremor', 'Weight gain', 'Hair loss', 'Drowsiness', 'Liver problems', 'Pancreatitis', 'Thrombocytopenia', 'Birth defects'] },
+  { medicineName: 'Valsartan', sideEffects: ['Dizziness', 'Headache', 'Fatigue', 'Low blood pressure', 'Raised potassium', 'Viral infections', 'Back pain', 'Kidney function changes'] },
+  { medicineName: 'Varenicline', sideEffects: ['Nausea', 'Headache', 'Insomnia', 'Abnormal dreams', 'Constipation', 'Diarrhoea', 'Vomiting', 'Mood changes', 'Skin rash'] },
+  { medicineName: 'Venlafaxine', sideEffects: ['Nausea', 'Dry mouth', 'Headache', 'Dizziness', 'Insomnia', 'Sweating', 'Sexual dysfunction', 'Increased blood pressure', 'Constipation'] },
+  { medicineName: 'Verapamil', sideEffects: ['Constipation', 'Nausea', 'Headache', 'Dizziness', 'Flushing', 'Ankle swelling', 'Slow heartbeat', 'Low blood pressure', 'Fatigue'] },
+  { medicineName: 'Warfarin', sideEffects: ['Bruising', 'Bleeding', 'Nausea', 'Diarrhoea', 'Skin rash', 'Hair loss', 'Purple toe syndrome (rare)'] },
+  { medicineName: 'Zolpidem', sideEffects: ['Drowsiness', 'Dizziness', 'Headache', 'Nausea', 'Memory problems', 'Confusion', 'Sleepwalking', 'Dependence', 'Rebound insomnia'] },
+  { medicineName: 'Zopiclone', sideEffects: ['Drowsiness', 'Bitter/metallic taste', 'Dry mouth', 'Dizziness', 'Headache', 'Nausea', 'Dependence', 'Rebound insomnia', 'Confusion'] },
 ];
 
 /**
  * Seed all NHS medicines into Firestore inventory collection.
- * Each entry gets stockQuantity = 0 and price = 0 by default.
- * Update them in the app once seeded.
+ * Pass `force = true` to wipe existing docs and re-seed fresh.
  */
-export async function seedMedicines() {
+export async function seedMedicines(force = false) {
   const col = collection(db, 'inventory');
-
-  // Check if already seeded to avoid duplicates
   const existing = await getDocs(col);
-  if (!existing.empty) {
-    console.warn(`Inventory already has ${existing.size} items. Skipping seed.`);
+
+  if (!existing.empty && !force) {
+    console.warn(`Inventory already has ${existing.size} items. Skipping. Pass force=true to re-seed.`);
     return { skipped: true, count: existing.size };
   }
 
+  // Wipe existing docs if force re-seed
+  if (!existing.empty && force) {
+    console.log('Clearing existing inventory…');
+    for (const docSnap of existing.docs) {
+      await deleteDoc(docSnap.ref);
+    }
+  }
+
   let count = 0;
-  for (const name of NHS_MEDICINES) {
+  for (const med of MEDICINES) {
     await addDoc(col, {
-      medicineName:      name,
+      medicineName:      med.medicineName,
+      sideEffects:       med.sideEffects,
       brand:             '',
       formulation:       '',
       unit:              'units',
@@ -90,12 +308,12 @@ export async function seedMedicines() {
       price:             0,
       expiryDate:        '',
       lowStockThreshold: 10,
-      status:            'Critical',          // 0 stock = Critical
+      status:            'Critical',
       createdAt:         serverTimestamp(),
     });
     count++;
   }
 
-  console.log(`✅ Seeded ${count} medicines into Firestore.`);
+  console.log(`✅ Seeded ${count} medicines with side effects into Firestore.`);
   return { seeded: true, count };
 }

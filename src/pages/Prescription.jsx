@@ -1,42 +1,146 @@
-import { useState, useEffect } from 'react';
-import { Save, Send, Pill, Plus, X, Loader2, Download, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Save, Send, Pill, Plus, X, Loader2, Download, AlertCircle, CheckCircle, HelpCircle, FlaskConical, Zap, Leaf } from 'lucide-react';
+import ReactSelect from 'react-select';
 import html2pdf from 'html2pdf.js';
 import Modal from '../components/Modal';
 import { getOrCreatePatient } from '../services/patientService';
 import { createPrescription }  from '../services/prescriptionService';
 import { getAllInventory }     from '../services/inventoryService';
+import { getAllDiseases }      from '../services/diseaseService';
+
+// Shared react-select styles that match .input-field
+const rxSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: '42px',
+    background: state.isDisabled ? '#f1f5f9' : (state.isFocused ? '#fff' : '#f8fafc'),
+    border: `1.5px solid ${state.isFocused ? '#059669' : '#e2e8f0'}`,
+    borderRadius: '8px',
+    boxShadow: state.isFocused ? '0 0 0 3px rgba(5,150,105,0.12)' : 'none',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+    cursor: 'pointer',
+    '&:hover': { borderColor: state.isFocused ? '#059669' : '#cbd5e1' },
+  }),
+  valueContainer: (base) => ({ ...base, padding: '2px 14px' }),
+  singleValue: (base) => ({ ...base, color: '#0f172a', fontSize: '0.9rem' }),
+  placeholder: (base) => ({ ...base, color: '#cbd5e1', fontSize: '0.9rem' }),
+  input: (base) => ({ ...base, color: '#0f172a', fontSize: '0.9rem', margin: 0, padding: 0 }),
+  indicatorSeparator: () => ({ display: 'none' }),
+  dropdownIndicator: (base) => ({ ...base, color: '#64748b', padding: '0 10px' }),
+  clearIndicator: (base) => ({ ...base, color: '#64748b', padding: '0 6px' }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: '8px',
+    border: '1.5px solid #e2e8f0',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
+    zIndex: 9999,
+    overflow: 'hidden',
+  }),
+  menuList: (base) => ({ ...base, padding: '4px' }),
+  option: (base, state) => ({
+    ...base,
+    borderRadius: '6px',
+    fontSize: '0.875rem',
+    padding: '8px 12px',
+    background: state.isSelected
+      ? '#059669'
+      : state.isFocused
+      ? '#ecfdf5'
+      : 'transparent',
+    color: state.isSelected ? '#fff' : '#0f172a',
+    cursor: 'pointer',
+  }),
+  noOptionsMessage: (base) => ({ ...base, fontSize: '0.875rem', color: '#64748b' }),
+};
+
+const LAB_REPORT_TYPES = [
+  'Blood Test',
+  'Urine Test',
+  'Stool Test',
+  'Sonography',
+  'X-Ray',
+  'ECG',
+  'Echo',
+  'CT Scan',
+  'MRI',
+  'Biopsy',
+  'Allergy Test',
+  'Mammography',
+  'CA (Carcinoma Antigen)',
+  'PET CT Scan',
+  'EEG',
+  'Other',
+];
 
 export default function Prescription() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [whatsappLoading, setWaLoading] = useState(false);
   const [modalConfig, setModalConfig] = useState({
     isOpen: false, title: '', message: '', type: 'info', onConfirm: null, showConfirm: false,
   });
 
   const [patientData, setPatientData] = useState({
-    name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '',
+    name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '', symptoms: '',
   });
 
-  const [medicines, setMedicines]  = useState([{ id: 1, name: '', timing: '', anupan: '', days: 7 }]);
-  const [pathya,    setPathya]     = useState('');
-  const [apathya,   setApathya]   = useState('');
-  const [notes,     setNotes]     = useState('');
+  const [medicines, setMedicines]      = useState([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [] }]);
+  const [pathya,    setPathya]         = useState('');
+  const [apathya,   setApathya]       = useState('');
+  const [notes,     setNotes]         = useState('');
   const [allMedicines, setAllMedicines] = useState([]);
+  const [allDiseases,  setAllDiseases]  = useState([]);
 
-  // Pre-load the full medicine list once so the native datalist is populated
+  // Lab Reports state
+  const [labReports, setLabReports]       = useState([]);
+  const [selectedLabType, setSelectedLabType] = useState('');
+  const [labNote, setLabNote]             = useState('');
+
+  // Pre-load medicines and diseases once
   useEffect(() => {
     getAllInventory()
       .then(setAllMedicines)
       .catch(err => {
-        console.error('Failed to load medicines for autocomplete:', err.message);
+        console.error('Failed to load medicines:', err.message);
         if (err.code === 'permission-denied') {
-          console.warn(
-            'Firestore rules are blocking reads.\n' +
-            'Go to Firebase Console → Firestore Database → Rules and set:\n' +
-            'allow read, write: if true;'
-          );
+          console.warn('Firestore rules blocking reads. Set: allow read, write: if true;');
         }
       });
+    getAllDiseases()
+      .then(setAllDiseases)
+      .catch(err => console.error('Failed to load diseases:', err.message));
   }, []);
+
+  // Map medicineName → sideEffects for O(1) lookup
+  const medicineEffectsMap = useMemo(() => {
+    const map = new Map();
+    for (const m of allMedicines) {
+      if (m.sideEffects?.length) map.set(m.medicineName.toLowerCase(), m.sideEffects);
+    }
+    return map;
+  }, [allMedicines]);
+
+  const getSideEffects = (name) => medicineEffectsMap.get(name.toLowerCase()) ?? [];
+
+  const allopathyOptions = useMemo(
+    () => allMedicines.filter(m => m.type === 'allopathy').map(m => ({ value: m.medicineName, label: m.medicineName })),
+    [allMedicines]
+  );
+  const ayurvedicOptions = useMemo(
+    () => allMedicines.filter(m => m.type === 'ayurvedic').map(m => ({ value: m.medicineName, label: m.medicineName })),
+    [allMedicines]
+  );
+  const diseaseOptions = useMemo(
+    () => allDiseases.map(d => ({ value: d.name, label: d.name })),
+    [allDiseases]
+  );
+  const labTypeOptions  = LAB_REPORT_TYPES.map(t => ({ value: t, label: t }));
+  const doseUnitOptions = [{ value: 'mg', label: 'mg' }, { value: 'ml', label: 'ml' }];
+
+  // Limit medicine suggestions to 40 to stay snappy with large lists
+  const medFilterOption = (option, inputValue) => {
+    if (!inputValue) return false;
+    return option.label.toLowerCase().includes(inputValue.toLowerCase());
+  };
 
   // ── Modal helpers ────────────────────────────────────────────────────────
   const showAlert   = (title, message, type = 'info') =>
@@ -46,16 +150,44 @@ export default function Prescription() {
   const closeModal  = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
   // ── Medicine row helpers ──────────────────────────────────────────────────
-  const addMedicineRow = () => {
+  const addMedicineRow = (medType = 'allopathy') => {
     const newId = medicines.length > 0 ? Math.max(...medicines.map(m => m.id)) + 1 : 1;
-    setMedicines(prev => [...prev, { id: newId, name: '', timing: '', anupan: '', days: 7 }]);
+    setMedicines(prev => [...prev, { id: newId, name: '', medType, timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [] }]);
   };
 
   const removeMedicineRow = (id) => setMedicines(prev => prev.filter(m => m.id !== id));
 
   const updateMedicineField = (id, field, value) => {
-    setMedicines(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+    setMedicines(prev => prev.map(m => {
+      if (m.id !== id) return m;
+      const updated = { ...m, [field]: value };
+      // Clear selected reactions when medicine name changes
+      if (field === 'name') updated.selectedReactions = [];
+      return updated;
+    }));
   };
+
+  const toggleReaction = (medId, reaction) => {
+    setMedicines(prev => prev.map(m => {
+      if (m.id !== medId) return m;
+      const sel = m.selectedReactions ?? [];
+      return {
+        ...m,
+        selectedReactions: sel.includes(reaction)
+          ? sel.filter(r => r !== reaction)
+          : [...sel, reaction],
+      };
+    }));
+  };
+
+  // ── Lab report helpers ───────────────────────────────────────────────────
+  const addLabReport = () => {
+    if (!selectedLabType) return;
+    setLabReports(prev => [...prev, { id: Date.now(), type: selectedLabType, remarks: '' }]);
+    setSelectedLabType('');
+  };
+  const removeLabReport  = (id)          => setLabReports(prev => prev.filter(r => r.id !== id));
+  const updateLabRemarks = (id, remarks) => setLabReports(prev => prev.map(r => r.id === id ? { ...r, remarks } : r));
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -75,7 +207,6 @@ export default function Prescription() {
         closeModal();
         setLoading(true);
         try {
-          // 1. Get existing patient or create a new one (dedup by exact name)
           const patient = await getOrCreatePatient({
             name:    patientData.name.trim(),
             age:     patientData.age,
@@ -84,13 +215,13 @@ export default function Prescription() {
             address: patientData.address,
           });
 
-          // 2. Save prescription (atomic transaction: writes doc + updates patient)
           await createPrescription(patient.id, {
             diagnosis: patientData.diagnosis,
             medicines,
             pathya,
             apathya,
             notes,
+            labReports,
           });
 
           showAlert('Saved', `Prescription saved for ${patient.name}`, 'success');
@@ -108,21 +239,75 @@ export default function Prescription() {
   const handleNew = () => {
     showConfirm('New Prescription', 'Start a new prescription? Current data will be lost.', () => {
       closeModal();
-      setPatientData({ name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '' });
-      setMedicines([{ id: 1, name: '', timing: '', anupan: '', days: 7 }]);
+      setPatientData({ name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '', symptoms: '' });
+      setMedicines([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [] }]);
       setPathya(''); setApathya(''); setNotes('');
+      setLabReports([]); setSelectedLabType(''); setLabNote('');
     });
+  };
+
+  // ── Shared PDF options ───────────────────────────────────────────────────
+  const pdfOptions = {
+    margin: 0,
+    filename: `${patientData.name || 'Prescription'}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2.5, useCORS: true, logging: false, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
   };
 
   // ── Download PDF ─────────────────────────────────────────────────────────
   const handleDownload = () => {
-    html2pdf().set({
-      margin: 0,
-      filename: `${patientData.name || 'Prescription'}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2.5, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(document.getElementById('prescription-preview')).save();
+    html2pdf().set(pdfOptions).from(document.getElementById('prescription-preview')).save();
+  };
+
+  // ── Send via WhatsApp ────────────────────────────────────────────────────
+  const handleWhatsApp = async () => {
+    setWaLoading(true);
+    try {
+      const filename = `${patientData.name || 'Prescription'}.pdf`;
+      const blob = await html2pdf()
+        .set(pdfOptions)
+        .from(document.getElementById('prescription-preview'))
+        .outputPdf('blob');
+
+      const file = new File([blob], filename, { type: 'application/pdf' });
+
+      // Mobile / modern browser — native share sheet (user picks WhatsApp contact)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Prescription – ${patientData.name || 'Patient'}`,
+          text: `Prescription from Sanjivani Clinic for ${patientData.name || 'patient'}.`,
+          files: [file],
+        });
+        return;
+      }
+
+      // Desktop fallback: download the file + open WhatsApp chat
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      const digits = (patientData.phone || '').replace(/\D/g, '');
+      const phone  = digits.length >= 10 ? (digits.startsWith('91') ? digits : `91${digits}`) : '';
+      const text   = encodeURIComponent(`Prescription for ${patientData.name || 'patient'} (see attached PDF)`);
+      window.open(phone ? `https://wa.me/${phone}?text=${text}` : `https://web.whatsapp.com`, '_blank');
+
+      showAlert(
+        'PDF Downloaded',
+        'The prescription PDF has been downloaded. Please attach it in the WhatsApp chat that just opened.',
+        'info'
+      );
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error(err);
+        showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
+      }
+    } finally {
+      setWaLoading(false);
+    }
   };
 
   // ── Modal icon map ────────────────────────────────────────────────────────
@@ -134,6 +319,9 @@ export default function Prescription() {
   }[modalConfig.type] ?? {};
 
   const pd = patientData;
+
+  // Medicines that have a name and have side effects available
+  const medicinesWithEffects = medicines.filter(m => m.name.trim() && getSideEffects(m.name).length > 0);
 
   return (
     <div className="layout-rx animate-fade-in">
@@ -181,26 +369,39 @@ export default function Prescription() {
             </div>
             <div className="input-group">
               <label className="input-label">Disease / Diagnosis</label>
-              <input type="text" className="input-field" placeholder="e.g. Amlapitta"
-                value={pd.diagnosis} onChange={e => setPatientData({ ...pd, diagnosis: e.target.value })} />
+              <ReactSelect
+                styles={rxSelectStyles}
+                options={diseaseOptions}
+                value={pd.diagnosis ? { value: pd.diagnosis, label: pd.diagnosis } : null}
+                onChange={opt => setPatientData({ ...pd, diagnosis: opt ? opt.value : '' })}
+                placeholder="e.g. Amlapitta"
+                isClearable
+                isSearchable
+              />
             </div>
           </div>
 
-          {/* Medicines table */}
+          {/* Symptoms */}
+          <div className="input-group">
+            <label className="input-label">Symptoms</label>
+            <textarea className="input-field" rows={2} placeholder="e.g. Headache, fever, nausea, stomach pain…"
+              value={pd.symptoms} onChange={e => setPatientData({ ...pd, symptoms: e.target.value })} />
+          </div>
+
+          {/* ── Medicines table ─────────────────────────────────── */}
           <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
             <div className="section-header">
               <h3 className="section-title"><Pill size={18} color="var(--primary)" /> Recommended Medicines</h3>
-              <button className="btn btn-secondary btn-sm" onClick={addMedicineRow}>
-                <Plus size={15} /> Add Row
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => addMedicineRow('allopathy')}>
+                  <Plus size={15} /> Allopathy
+                </button>
+                <button className="btn btn-secondary btn-sm" style={{ color: 'var(--success, #059669)', borderColor: 'var(--success, #059669)' }} onClick={() => addMedicineRow('ayurvedic')}>
+                  <Leaf size={15} /> Ayurvedic
+                </button>
+              </div>
             </div>
 
-            {/* Native datalist — not clipped by any overflow container */}
-            <datalist id="med-suggestions">
-              {allMedicines.map(m => (
-                <option key={m.id} value={m.medicineName} />
-              ))}
-            </datalist>
 
             <div className="table-container">
               <table className="data-table med-table">
@@ -210,6 +411,7 @@ export default function Prescription() {
                     <th>Timing</th>
                     <th>Anupan</th>
                     <th style={{ width: '70px' }}>Days</th>
+                    <th style={{ width: '110px' }}>Dose</th>
                     <th style={{ width: '40px' }}></th>
                   </tr>
                 </thead>
@@ -217,14 +419,27 @@ export default function Prescription() {
                   {medicines.map(med => (
                     <tr key={med.id}>
                       <td data-label="Medicine">
-                        <input
-                          type="text"
-                          className="input-field"
-                          placeholder="Search medicine…"
-                          list="med-suggestions"
-                          value={med.name}
-                          onChange={e => updateMedicineField(med.id, 'name', e.target.value)}
-                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {med.medType === 'ayurvedic'
+                              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', fontWeight: 600, color: '#059669', background: 'rgba(5,150,105,0.1)', border: '1px solid rgba(5,150,105,0.3)', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}><Leaf size={10} /> Ayurvedic</span>
+                              : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-surface)', border: '1px solid var(--primary-border)', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}><FlaskConical size={10} /> Allopathy</span>
+                            }
+                          </div>
+                          <ReactSelect
+                            styles={rxSelectStyles}
+                            options={med.medType === 'ayurvedic' ? ayurvedicOptions : allopathyOptions}
+                            value={med.name ? { value: med.name, label: med.name } : null}
+                            onChange={opt => updateMedicineField(med.id, 'name', opt ? opt.value : '')}
+                            filterOption={medFilterOption}
+                            noOptionsMessage={({ inputValue }) => inputValue.length < 2 ? 'Type at least 2 characters…' : 'No medicines found'}
+                            placeholder="Search medicine…"
+                            isClearable
+                            isSearchable
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                          />
+                        </div>
                       </td>
                       <td data-label="Timing">
                         <input type="text" className="input-field" placeholder="e.g. BD" value={med.timing}
@@ -238,6 +453,36 @@ export default function Prescription() {
                         <input type="number" className="input-field" value={med.days}
                           onChange={e => updateMedicineField(med.id, 'days', e.target.value)} />
                       </td>
+                      <td data-label="Dose">
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <input
+                            type="number"
+                            className="input-field"
+                            placeholder="0"
+                            value={med.dose}
+                            onChange={e => updateMedicineField(med.id, 'dose', e.target.value)}
+                            style={{ width: '55px' }}
+                          />
+                          <ReactSelect
+                            styles={{
+                              ...rxSelectStyles,
+                              control: (base, state) => ({
+                                ...rxSelectStyles.control(base, state),
+                                minWidth: '80px',
+                                minHeight: '42px',
+                              }),
+                              valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
+                              dropdownIndicator: (base) => ({ ...base, padding: '0 6px' }),
+                            }}
+                            options={doseUnitOptions}
+                            value={{ value: med.doseUnit, label: med.doseUnit }}
+                            onChange={opt => updateMedicineField(med.id, 'doseUnit', opt.value)}
+                            isSearchable={false}
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                          />
+                        </div>
+                      </td>
                       <td data-label="">
                         <button className="btn btn-ghost btn-icon" style={{ color: 'var(--danger)' }}
                           onClick={() => removeMedicineRow(med.id)}>
@@ -249,6 +494,111 @@ export default function Prescription() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* ── Drug Reactions / Side Effects ───────────────────── */}
+          {medicinesWithEffects.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
+              <div className="section-header" style={{ marginBottom: '12px' }}>
+                <h3 className="section-title">
+                  <Zap size={18} color="var(--warning, #d97706)" />
+                  <span style={{ color: 'var(--warning, #d97706)' }}>Drug Reactions / Side Effects</span>
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Select reactions observed</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {medicinesWithEffects.map(med => {
+                  const effects = getSideEffects(med.name);
+                  return (
+                    <div key={med.id} className="drug-reaction-card">
+                      <div className="drug-reaction-header">
+                        <span className="drug-reaction-medicine">{med.name}</span>
+                        {med.selectedReactions.length > 0 && (
+                          <span className="drug-reaction-count">{med.selectedReactions.length} selected</span>
+                        )}
+                      </div>
+                      <div className="reaction-chips">
+                        {effects.map(effect => (
+                          <button
+                            key={effect}
+                            type="button"
+                            className={`reaction-chip${med.selectedReactions.includes(effect) ? ' selected' : ''}`}
+                            onClick={() => toggleReaction(med.id, effect)}
+                          >
+                            {effect}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Lab Reports / Investigations ────────────────────── */}
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
+            <div className="section-header" style={{ marginBottom: '12px' }}>
+              <h3 className="section-title">
+                <FlaskConical size={18} color="var(--primary)" /> Lab Reports / Investigations
+              </h3>
+            </div>
+
+            {/* Add report row */}
+            <div className="lab-add-row">
+              <ReactSelect
+                styles={rxSelectStyles}
+                options={labTypeOptions}
+                value={selectedLabType ? { value: selectedLabType, label: selectedLabType } : null}
+                onChange={opt => setSelectedLabType(opt ? opt.value : '')}
+                placeholder="— Select investigation —"
+                isClearable
+                isSearchable={false}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={addLabReport}
+                disabled={!selectedLabType}
+              >
+                <Plus size={15} /> Add
+              </button>
+            </div>
+            <div className="input-group" style={{ marginTop: '10px' }}>
+              <label className="input-label">Lab Note</label>
+              <input type="text" className="input-field" placeholder="e.g. Fasting required, STAT, repeat after 2 weeks…"
+                value={labNote} onChange={e => setLabNote(e.target.value)} />
+            </div>
+
+            {/* Selected lab reports list */}
+            {labReports.length > 0 && (
+              <div className="lab-reports-list">
+                {labReports.map((report, idx) => (
+                  <div key={report.id} className="lab-report-card">
+                    <div className="lab-report-header">
+                      <div className="lab-report-index">{idx + 1}</div>
+                      <span className="lab-report-type">{report.type}</span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-icon"
+                        style={{ color: 'var(--danger)', marginLeft: 'auto' }}
+                        onClick={() => removeLabReport(report.id)}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      className="input-field lab-report-remarks"
+                      placeholder="Remarks (e.g. Fasting required, Urgent)"
+                      value={report.remarks}
+                      onChange={e => updateLabRemarks(report.id, e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Pathya / Apathya */}
@@ -298,6 +648,7 @@ export default function Prescription() {
             {pd.phone    && <div><strong>Mobile:</strong> {pd.phone}</div>}
             <div><strong>Address:</strong> {pd.address || 'Not specified'}</div>
             {pd.diagnosis && <div style={{ marginTop: '6px', color: '#059669' }}><strong>Diagnosis:</strong> {pd.diagnosis}</div>}
+            {pd.symptoms  && <div style={{ marginTop: '4px' }}><strong>Symptoms:</strong> {pd.symptoms}</div>}
           </div>
 
           {/* Medicines */}
@@ -307,13 +658,41 @@ export default function Prescription() {
           <ul style={{ paddingLeft: '18px', fontSize: '0.85rem', color: '#333', lineHeight: 1.9 }}>
             {medicines.map(m => (
               <li key={m.id} style={{ marginBottom: '6px' }}>
-                <strong>{m.name || 'Medicine Name'}</strong>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <strong>{m.name || 'Medicine Name'}</strong>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 600, color: m.medType === 'ayurvedic' ? '#059669' : '#6366f1', background: m.medType === 'ayurvedic' ? 'rgba(5,150,105,0.08)' : 'rgba(99,102,241,0.08)', border: `1px solid ${m.medType === 'ayurvedic' ? 'rgba(5,150,105,0.25)' : 'rgba(99,102,241,0.25)'}`, borderRadius: '4px', padding: '0px 5px' }}>
+                    {m.medType === 'ayurvedic' ? 'Ayurvedic' : 'Allopathy'}
+                  </span>
+                </span>
                 <div style={{ fontSize: '0.78rem', color: '#666' }}>
-                  {m.timing} {m.anupan ? `with ${m.anupan}` : ''} · {m.days} days
+                  {m.timing} {m.anupan ? `with ${m.anupan}` : ''} · {m.days} days{m.dose ? ` · ${m.dose} ${m.doseUnit}` : ''}
                 </div>
+                {m.selectedReactions.length > 0 && (
+                  <div style={{ fontSize: '0.74rem', color: '#b45309', marginTop: '2px' }}>
+                    Reactions: {m.selectedReactions.join(', ')}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
+
+          {/* Lab Reports in preview */}
+          {labReports.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ color: '#059669', borderBottom: '1px solid #059669', display: 'inline-block', fontWeight: 700, fontSize: '0.95rem', marginBottom: '10px' }}>
+                Investigations Advised
+              </div>
+              <ul style={{ paddingLeft: '18px', fontSize: '0.82rem', color: '#333', lineHeight: 1.8 }}>
+                {labReports.map((r, i) => (
+                  <li key={r.id}>
+                    {r.type}
+                    {r.remarks && <span style={{ color: '#666', fontStyle: 'italic' }}> — {r.remarks}</span>}
+                  </li>
+                ))}
+              </ul>
+              {labNote && <div style={{ marginTop: '6px', fontSize: '0.8rem', color: '#555', fontStyle: 'italic' }}><strong>Note:</strong> {labNote}</div>}
+            </div>
+          )}
 
           {/* Diet / Notes */}
           {(pathya || apathya || notes) && (
@@ -333,8 +712,16 @@ export default function Prescription() {
           <button className="btn btn-outline" style={{ width: '100%' }} onClick={handleDownload}>
             <Download size={16} /> PDF
           </button>
-          <button className="btn btn-primary" style={{ gridColumn: 'span 2', background: '#25D366', width: '100%' }}>
-            <Send size={16} /> Send via WhatsApp
+          <button
+            className="btn btn-primary"
+            style={{ gridColumn: 'span 2', background: '#25D366', border: 'none', width: '100%' }}
+            onClick={handleWhatsApp}
+            disabled={whatsappLoading}
+          >
+            {whatsappLoading
+              ? <><Loader2 className="animate-spin" size={16} /> Preparing…</>
+              : <><Send size={16} /> Send via WhatsApp</>
+            }
           </button>
         </div>
       </div>
