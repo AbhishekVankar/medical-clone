@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const COL = 'diseases';
@@ -16,4 +16,15 @@ export async function getAllDiseases() {
     .sort((a, b) => a.name.localeCompare(b.name));
   _cacheAt = Date.now();
   return _cache;
+}
+
+export async function addDisease(name) {
+  const ref = await addDoc(collection(db, COL), { name: name.trim(), createdAt: serverTimestamp() });
+  const entry = { id: ref.id, name: name.trim() };
+  // Bust cache and append so the new item is available immediately
+  if (_cache) {
+    _cache = [..._cache, entry].sort((a, b) => a.name.localeCompare(b.name));
+    _cacheAt = Date.now();
+  }
+  return entry;
 }

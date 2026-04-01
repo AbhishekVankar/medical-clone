@@ -1,29 +1,31 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Save, Send, Pill, Plus, X, Loader2, Download, AlertCircle, CheckCircle, HelpCircle, FlaskConical, Zap, Leaf } from 'lucide-react';
-import ReactSelect from 'react-select';
+import CreatableSelect from 'react-select/creatable';
 import html2pdf from 'html2pdf.js';
 import Modal from '../components/Modal';
 import { getOrCreatePatient } from '../services/patientService';
 import { createPrescription }  from '../services/prescriptionService';
-import { getAllInventory }     from '../services/inventoryService';
-import { getAllDiseases }      from '../services/diseaseService';
+import { getAllInventory, quickAddMedicine } from '../services/inventoryService';
+import { getAllDiseases, addDisease }        from '../services/diseaseService';
 
 // Shared react-select styles that match .input-field
 const rxSelectStyles = {
   control: (base, state) => ({
     ...base,
     minHeight: '42px',
-    background: state.isDisabled ? '#f1f5f9' : (state.isFocused ? '#fff' : '#f8fafc'),
-    border: `1.5px solid ${state.isFocused ? '#059669' : '#e2e8f0'}`,
+    background: state.isDisabled ? '#f8fafc' : '#ffffff',
+    border: `1.5px solid ${state.isFocused ? '#059669' : '#cbd5e1'}`,
     borderRadius: '8px',
-    boxShadow: state.isFocused ? '0 0 0 3px rgba(5,150,105,0.12)' : 'none',
+    boxShadow: state.isFocused
+      ? '0 0 0 3px rgba(5,150,105,0.12), 0 1px 2px rgba(0,0,0,0.04)'
+      : '0 1px 2px rgba(0,0,0,0.04)',
     transition: 'border-color 0.15s, box-shadow 0.15s',
     cursor: 'pointer',
-    '&:hover': { borderColor: state.isFocused ? '#059669' : '#cbd5e1' },
+    '&:hover': { borderColor: state.isFocused ? '#059669' : '#94a3b8' },
   }),
   valueContainer: (base) => ({ ...base, padding: '2px 14px' }),
   singleValue: (base) => ({ ...base, color: '#0f172a', fontSize: '0.9rem' }),
-  placeholder: (base) => ({ ...base, color: '#cbd5e1', fontSize: '0.9rem' }),
+  placeholder: (base) => ({ ...base, color: '#94a3b8', fontSize: '0.9rem' }),
   input: (base) => ({ ...base, color: '#0f172a', fontSize: '0.9rem', margin: 0, padding: 0 }),
   indicatorSeparator: () => ({ display: 'none' }),
   dropdownIndicator: (base) => ({ ...base, color: '#64748b', padding: '0 10px' }),
@@ -262,27 +264,22 @@ export default function Prescription() {
 
   // ── Send via WhatsApp ────────────────────────────────────────────────────
   const handleWhatsApp = async () => {
+    const digits = (patientData.phone || '').replace(/\D/g, '');
+    if (digits.length < 10) {
+      showAlert('Phone Number Required', 'Please fill in the patient\'s phone number before sending via WhatsApp.', 'warning');
+      return;
+    }
+
     setWaLoading(true);
     try {
       const filename = `${patientData.name || 'Prescription'}.pdf`;
+
+      // Download the PDF
       const blob = await html2pdf()
         .set(pdfOptions)
         .from(document.getElementById('prescription-preview'))
         .outputPdf('blob');
 
-      const file = new File([blob], filename, { type: 'application/pdf' });
-
-      // Mobile / modern browser — native share sheet (user picks WhatsApp contact)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `Prescription – ${patientData.name || 'Patient'}`,
-          text: `Prescription from Sanjivani Clinic for ${patientData.name || 'patient'}.`,
-          files: [file],
-        });
-        return;
-      }
-
-      // Desktop fallback: download the file + open WhatsApp chat
       const url = URL.createObjectURL(blob);
       const a   = document.createElement('a');
       a.href     = url;
@@ -290,10 +287,10 @@ export default function Prescription() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
 
-      const digits = (patientData.phone || '').replace(/\D/g, '');
-      const phone  = digits.length >= 10 ? (digits.startsWith('91') ? digits : `91${digits}`) : '';
-      const text   = encodeURIComponent(`Prescription for ${patientData.name || 'patient'} (see attached PDF)`);
-      window.open(phone ? `https://wa.me/${phone}?text=${text}` : `https://web.whatsapp.com`, '_blank');
+      // Open direct WhatsApp chat with patient's number
+      const phone = digits.startsWith('91') ? digits : `91${digits}`;
+      const text  = encodeURIComponent(`Prescription for ${patientData.name || 'patient'} — please find the PDF attached.`);
+      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
 
       showAlert(
         'PDF Downloaded',
@@ -301,10 +298,8 @@ export default function Prescription() {
         'info'
       );
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error(err);
-        showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
-      }
+      console.error(err);
+      showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
     } finally {
       setWaLoading(false);
     }
@@ -369,11 +364,17 @@ export default function Prescription() {
             </div>
             <div className="input-group">
               <label className="input-label">Disease / Diagnosis</label>
-              <ReactSelect
+              <CreatableSelect
                 styles={rxSelectStyles}
                 options={diseaseOptions}
                 value={pd.diagnosis ? { value: pd.diagnosis, label: pd.diagnosis } : null}
                 onChange={opt => setPatientData({ ...pd, diagnosis: opt ? opt.value : '' })}
+                onCreateOption={async (name) => {
+                  const entry = await addDisease(name);
+                  setAllDiseases(prev => [...prev, entry].sort((a, b) => a.name.localeCompare(b.name)));
+                  setPatientData({ ...pd, diagnosis: entry.name });
+                }}
+                formatCreateLabel={(val) => `Add "${val}" as new disease`}
                 placeholder="e.g. Amlapitta"
                 isClearable
                 isSearchable
@@ -426,12 +427,18 @@ export default function Prescription() {
                               : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-surface)', border: '1px solid var(--primary-border)', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}><FlaskConical size={10} /> Allopathy</span>
                             }
                           </div>
-                          <ReactSelect
+                          <CreatableSelect
                             styles={rxSelectStyles}
                             options={med.medType === 'ayurvedic' ? ayurvedicOptions : allopathyOptions}
                             value={med.name ? { value: med.name, label: med.name } : null}
                             onChange={opt => updateMedicineField(med.id, 'name', opt ? opt.value : '')}
+                            onCreateOption={async (name) => {
+                              const entry = await quickAddMedicine(name, med.medType);
+                              setAllMedicines(prev => [...prev, entry].sort((a, b) => a.medicineName.localeCompare(b.medicineName)));
+                              updateMedicineField(med.id, 'name', entry.medicineName);
+                            }}
                             filterOption={medFilterOption}
+                            formatCreateLabel={(val) => `Add "${val}" as new ${med.medType} medicine`}
                             noOptionsMessage={({ inputValue }) => inputValue.length < 2 ? 'Type at least 2 characters…' : 'No medicines found'}
                             placeholder="Search medicine…"
                             isClearable
@@ -463,7 +470,7 @@ export default function Prescription() {
                             onChange={e => updateMedicineField(med.id, 'dose', e.target.value)}
                             style={{ width: '55px' }}
                           />
-                          <ReactSelect
+                          <CreatableSelect
                             styles={{
                               ...rxSelectStyles,
                               control: (base, state) => ({
@@ -547,7 +554,7 @@ export default function Prescription() {
 
             {/* Add report row */}
             <div className="lab-add-row">
-              <ReactSelect
+              <CreatableSelect
                 styles={rxSelectStyles}
                 options={labTypeOptions}
                 value={selectedLabType ? { value: selectedLabType, label: selectedLabType } : null}

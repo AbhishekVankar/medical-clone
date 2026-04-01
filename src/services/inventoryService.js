@@ -176,3 +176,38 @@ export async function adjustStock(medicineId, delta) {
 export async function consumeOne(medicineId) {
   return adjustStock(medicineId, -1);
 }
+
+/**
+ * Quick-add a medicine by name + type directly from the prescription form.
+ * Creates a minimal inventory record and updates the cache immediately.
+ */
+export async function quickAddMedicine(medicineName, type = 'allopathy') {
+  const payload = {
+    medicineName:      medicineName.trim(),
+    type,
+    brand:             '',
+    formulation:       'Other',
+    category:          'Other',
+    unit:              'units',
+    unitSize:          '',
+    stockQuantity:     0,
+    price:             0,
+    expiryDate:        '',
+    lowStockThreshold: 10,
+    sideEffects:       [],
+    indications:       [],
+    dose:              '',
+    precautions:       '',
+    drugCode:          '',
+    status:            'Critical',
+    createdAt:         serverTimestamp(),
+  };
+
+  invalidateCache();
+  const ref   = await addDoc(collection(db, COL), payload);
+  const entry = { id: ref.id, ...payload };
+
+  // Reload cache with the new entry appended
+  const all = await getAllInventory();
+  return entry;
+}

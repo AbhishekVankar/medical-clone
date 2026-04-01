@@ -1,36 +1,37 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, User, History, Download, ArrowLeft, Loader2, Activity } from 'lucide-react';
+import {
+  Calendar, User, History, Download, ArrowLeft, Loader2,
+  Activity, Phone, MapPin, FlaskConical, Leaf, FileText,
+  ClipboardList, Utensils, StickyNote,
+} from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { getPatientWithHistory } from '../services/patientService';
 
+function initials(name) {
+  if (!name) return '?';
+  return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
 export default function PatientHistory() {
-  const { id }      = useParams();
-  const navigate    = useNavigate();
-  const [patient,   setPatient]  = useState(null);
-  const [loading,   setLoading]  = useState(true);
-  const [error,     setError]    = useState(null);
+  const { id }   = useParams();
+  const navigate = useNavigate();
+  const [patient,  setPatient]  = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
 
   useEffect(() => { load(); }, [id]);
 
   const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Single call: fetches patient doc + prescriptions query in parallel
-      const data = await getPatientWithHistory(id);
-      setPatient(data);
-    } catch (err) {
-      console.error('Failed to load patient history:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError(null);
+    try { setPatient(await getPatientWithHistory(id)); }
+    catch (err) { console.error(err); setError(err.message); }
+    finally { setLoading(false); }
   };
 
   const downloadPDF = (record) => {
-    const element = document.createElement('div');
-    element.innerHTML = `
+    const el = document.createElement('div');
+    el.innerHTML = `
       <div style="padding:40px;font-family:sans-serif;color:#333;line-height:1.6">
         <div style="border-bottom:2px solid #059669;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
           <div>
@@ -46,7 +47,7 @@ export default function PatientHistory() {
         </div>
         <h3 style="color:#059669;border-bottom:1px solid #059669;display:inline-block">Advised Medicines</h3>
         <ul style="padding-left:20px">
-          ${(Array.isArray(record.medicines) ? record.medicines : []).map(m => `
+          ${(record.medicines ?? []).map(m => `
             <li style="margin-bottom:8px">
               <strong>${m.name}</strong>
               <div style="font-size:.85rem;color:#666">${m.timing || ''} ${m.anupan ? `with ${m.anupan}` : ''} · ${m.days} days</div>
@@ -62,21 +63,19 @@ export default function PatientHistory() {
     html2pdf().set({
       margin: 0,
       filename: `${patient.name}_${new Date(record.createdAt).toLocaleDateString()}.pdf`,
-      image:    { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2.5, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-      jsPDF:    { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(element).save();
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(el).save();
   };
 
-  // ── Loading ─────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="loader-container" style={{ height: '60vh' }}>
       <Loader2 className="loader-icon" size={46} />
-      <p style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: 500 }}>Opening Medical History…</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: 500 }}>Loading Medical History…</p>
     </div>
   );
 
-  // ── Not found ────────────────────────────────────────────────────────────
   if (!patient || error) return (
     <div className="animate-fade-in empty-state" style={{ height: '60vh' }}>
       <User size={48} />
@@ -93,6 +92,8 @@ export default function PatientHistory() {
 
   return (
     <div className="animate-fade-in">
+
+      {/* ── Page Header ─────────────────────────────────────── */}
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <button className="btn btn-secondary btn-icon" onClick={() => navigate('/patients')}>
@@ -100,109 +101,196 @@ export default function PatientHistory() {
           </button>
           <div>
             <h1 className="page-title">{patient.name}</h1>
-            <p className="page-subtitle">Medical History Timeline</p>
+            <p className="page-subtitle">Medical History · {sorted.length} visit{sorted.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
       </div>
 
       <div className="layout-profile">
 
-        {/* ── Profile card ─────────────────────────────────────────── */}
-        <div className="glass-panel patient-profile-card">
-          <div className="patient-avatar-lg">
-            <User size={44} color="var(--primary)" />
-          </div>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{patient.name}</h2>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '8px' }}>
-            {patient.age ? `${patient.age} years` : '—'} · {patient.gender || 'N/A'}
-          </div>
-          <span className="badge badge-green">
-            {sorted.length} Visit{sorted.length !== 1 ? 's' : ''}
-          </span>
+        {/* ── Profile Sidebar ──────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-          <div className="info-block">
-            <div className="info-block-row">
-              <span>Phone</span>
-              <span>{patient.contact || '—'}</span>
+          {/* Avatar card */}
+          <div className="glass-panel ph-profile-card">
+            <div className="ph-profile-banner" />
+            <div className="ph-avatar-wrap">
+              <div className="ph-avatar">{initials(patient.name)}</div>
             </div>
-            <div className="info-block-row">
-              <span>Total Visits</span>
-              <span>{patient.prescriptionCount ?? sorted.length}</span>
+            <div className="ph-profile-body">
+              <h2 className="ph-patient-name">{patient.name}</h2>
+              <p className="ph-patient-meta">
+                {patient.age ? `${patient.age} yrs` : '—'} &nbsp;·&nbsp; {patient.gender || 'N/A'}
+              </p>
+              <span className="badge badge-green" style={{ marginTop: '4px' }}>
+                {sorted.length} Visit{sorted.length !== 1 ? 's' : ''}
+              </span>
             </div>
-            {patient.address && (
-              <div className="info-block-row">
-                <span>Address</span>
-                <span>{patient.address}</span>
-              </div>
-            )}
           </div>
+
+          {/* Patient details card */}
+          <div className="glass-panel" style={{ padding: '20px' }}>
+            <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px' }}>
+              Patient Details
+            </p>
+            <div className="ph-detail-list">
+              <div className="ph-detail-row">
+                <span className="ph-detail-icon"><Phone size={13} /></span>
+                <span className="ph-detail-label">Phone</span>
+                <span className="ph-detail-value">{patient.contact || '—'}</span>
+              </div>
+              <div className="ph-detail-row">
+                <span className="ph-detail-icon"><ClipboardList size={13} /></span>
+                <span className="ph-detail-label">Total Visits</span>
+                <span className="ph-detail-value">{patient.prescriptionCount ?? sorted.length}</span>
+              </div>
+              {patient.address && (
+                <div className="ph-detail-row">
+                  <span className="ph-detail-icon"><MapPin size={13} /></span>
+                  <span className="ph-detail-label">Address</span>
+                  <span className="ph-detail-value">{patient.address}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
 
-        {/* ── Prescription timeline ─────────────────────────────────── */}
-        <div className="glass-panel">
-          <h3 className="section-title" style={{ marginBottom: '20px' }}>
+        {/* ── Timeline ─────────────────────────────────────────── */}
+        <div className="glass-panel" style={{ padding: '28px' }}>
+          <h3 className="section-title" style={{ marginBottom: '28px' }}>
             <History size={18} color="var(--primary)" /> Prescription Timeline
           </h3>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {sorted.length === 0 ? (
-              <div className="empty-state">
-                <History size={40} />
-                <p>No past prescriptions found for this patient.</p>
-              </div>
-            ) : (
-              sorted.map((record, index) => (
-                <div key={record.id} className="rx-record">
-                  <div className="rx-record-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: 'var(--primary)' }}>
-                      <Calendar size={16} /> Visit #{sorted.length - index}
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                      {record.createdAt
-                        ? new Date(record.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : '—'}
-                    </span>
-                  </div>
+          {sorted.length === 0 ? (
+            <div className="empty-state">
+              <History size={40} />
+              <p>No past prescriptions found for this patient.</p>
+            </div>
+          ) : (
+            <div className="ph-timeline">
+              {sorted.map((record, index) => {
+                const medicines = Array.isArray(record.medicines) ? record.medicines : [];
+                const labReports = Array.isArray(record.labReports) ? record.labReports : [];
+                const visitNum = sorted.length - index;
+                const dateStr = record.createdAt
+                  ? new Date(record.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '—';
 
-                  <div className="rx-record-body">
-                    {/* Left column */}
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Diagnosis</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', marginBottom: '14px' }}>
-                        <Activity size={13} color="var(--primary)" /> {record.diagnosis || 'General checkup'}
+                return (
+                  <div key={record.id} className="ph-entry">
+                    {/* Timeline spine */}
+                    <div className="ph-spine">
+                      <div className="ph-dot" />
+                      {index < sorted.length - 1 && <div className="ph-line" />}
+                    </div>
+
+                    {/* Card */}
+                    <div className="ph-card">
+                      {/* Card header */}
+                      <div className="ph-card-header">
+                        <div className="ph-visit-badge">
+                          <Calendar size={13} /> Visit #{visitNum}
+                        </div>
+                        <span className="ph-date-chip">{dateStr}</span>
+                        <button
+                          className="btn btn-outline btn-sm"
+                          style={{ marginLeft: 'auto' }}
+                          onClick={() => downloadPDF(record)}
+                        >
+                          <Download size={13} /> PDF
+                        </button>
                       </div>
 
-                      <div style={{ fontWeight: 600, fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Medicines</div>
-                      <ul style={{ paddingLeft: '16px', margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.9 }}>
-                        {(Array.isArray(record.medicines) ? record.medicines : []).map((m, i) => (
-                          <li key={i}>{m.name}</li>
-                        ))}
-                      </ul>
-                    </div>
+                      {/* Diagnosis */}
+                      {record.diagnosis && (
+                        <div className="ph-diagnosis">
+                          <Activity size={13} />
+                          <span>{record.diagnosis}</span>
+                        </div>
+                      )}
 
-                    {/* Right column */}
-                    <div className="rx-record-notes">
-                      {record.pathya && (
-                        <div style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                          <strong style={{ fontSize: '0.78rem', color: 'var(--success)', textTransform: 'uppercase' }}>Pathya</strong>
-                          <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>{record.pathya}</div>
+                      {/* Card body */}
+                      <div className="ph-card-body">
+
+                        {/* Medicines */}
+                        {medicines.length > 0 && (
+                          <div className="ph-section">
+                            <p className="ph-section-label">Medicines</p>
+                            <div className="ph-med-list">
+                              {medicines.map((m, i) => (
+                                <div key={i} className="ph-med-item">
+                                  <div className="ph-med-top">
+                                    {m.medType === 'ayurvedic'
+                                      ? <span className="ph-type-badge ph-type-ayur"><Leaf size={9} /> Ayurvedic</span>
+                                      : <span className="ph-type-badge ph-type-allo"><FlaskConical size={9} /> Allopathy</span>
+                                    }
+                                    <span className="ph-med-name">{m.name}</span>
+                                  </div>
+                                  {(m.timing || m.days || m.dose) && (
+                                    <p className="ph-med-detail">
+                                      {[
+                                        m.timing,
+                                        m.anupan ? `with ${m.anupan}` : '',
+                                        m.days   ? `${m.days} days` : '',
+                                        m.dose   ? `${m.dose} ${m.doseUnit || ''}` : '',
+                                      ].filter(Boolean).join(' · ')}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Right column: notes + lab reports */}
+                        <div className="ph-side-col">
+
+                          {/* Lab reports */}
+                          {labReports.length > 0 && (
+                            <div className="ph-section">
+                              <p className="ph-section-label"><FlaskConical size={11} /> Investigations</p>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {labReports.map((r, i) => (
+                                  <div key={i} className="ph-lab-item">
+                                    <span className="ph-lab-type">{r.type}</span>
+                                    {r.remarks && <span className="ph-lab-remarks">{r.remarks}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Pathya / Apathya */}
+                          {(record.pathya || record.apathya) && (
+                            <div className="ph-section">
+                              <p className="ph-section-label"><Utensils size={11} /> Diet</p>
+                              {record.pathya  && <p className="ph-note-text"><strong>Do's:</strong> {record.pathya}</p>}
+                              {record.apathya && <p className="ph-note-text"><strong>Don'ts:</strong> {record.apathya}</p>}
+                            </div>
+                          )}
+
+                          {/* Notes */}
+                          {record.notes && (
+                            <div className="ph-section">
+                              <p className="ph-section-label"><StickyNote size={11} /> Dr. Notes</p>
+                              <p className="ph-note-text ph-note-italic">{record.notes}</p>
+                            </div>
+                          )}
+
+                          {/* Empty right col fallback */}
+                          {!labReports.length && !record.pathya && !record.apathya && !record.notes && (
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No additional notes</p>
+                          )}
                         </div>
-                      )}
-                      {record.notes && (
-                        <div style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
-                          <strong style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dr. Notes</strong>
-                          <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '2px' }}>{record.notes}</div>
-                        </div>
-                      )}
-                      <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => downloadPDF(record)}>
-                        <Download size={13} /> Download PDF
-                      </button>
+
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
