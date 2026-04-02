@@ -84,6 +84,7 @@ export default function Prescription() {
   const [patientData, setPatientData] = useState({
     name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '', symptoms: '',
   });
+  const [vitals, setVitals] = useState({ bp: '', pulse: '', o2: '', weight: '', sugar: '', temperature: '' });
 
   const [medicines, setMedicines]      = useState([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [], customReactions: [] }]);
   const [customReactionInputs, setCustomReactionInputs] = useState({});
@@ -261,6 +262,7 @@ export default function Prescription() {
     showConfirm('New Prescription', 'Start a new prescription? Current data will be lost.', () => {
       closeModal();
       setPatientData({ name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '', symptoms: '' });
+      setVitals({ bp: '', pulse: '', o2: '', weight: '', sugar: '', temperature: '' });
       setMedicines([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [], customReactions: [] }]);
       setCustomReactionInputs({});
       setPathya(''); setApathya(''); setNotes('');
@@ -419,6 +421,43 @@ export default function Prescription() {
             <label className="input-label">Symptoms</label>
             <textarea className="input-field" rows={2} placeholder="e.g. Headache, fever, nausea, stomach pain…"
               value={pd.symptoms} onChange={e => setPatientData({ ...pd, symptoms: e.target.value })} />
+          </div>
+
+          {/* ── Vitals ──────────────────────────────────────────── */}
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+            <div className="section-header" style={{ marginBottom: '10px' }}>
+              <h3 className="section-title" style={{ fontSize: '0.9rem' }}>Vitals</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              {[
+                { label: 'BP',          key: 'bp',          placeholder: 'e.g. 120/80',  unit: 'mmHg' },
+                { label: 'Pulse',       key: 'pulse',       placeholder: 'e.g. 72',       unit: 'bpm'  },
+                { label: 'O₂ Sat',      key: 'o2',          placeholder: 'e.g. 98',       unit: '%'    },
+                { label: 'Weight',      key: 'weight',      placeholder: 'e.g. 65',       unit: 'kg'   },
+                { label: 'Sugar',       key: 'sugar',       placeholder: 'e.g. 110',      unit: 'mg/dL'},
+                { label: 'Temperature', key: 'temperature', placeholder: 'e.g. 98.6',     unit: '°F'   },
+              ].map(v => (
+                <div key={v.key} className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">{v.label}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder={v.placeholder}
+                      value={vitals[v.key]}
+                      onChange={e => setVitals(prev => ({ ...prev, [v.key]: e.target.value }))}
+                      style={{ borderRadius: '8px 0 0 8px', borderRight: 'none', flex: 1, minWidth: 0 }}
+                    />
+                    <span style={{
+                      padding: '0 8px', height: '42px', display: 'flex', alignItems: 'center',
+                      background: 'var(--bg-muted)', border: '1.5px solid #cbd5e1', borderLeft: 'none',
+                      borderRadius: '0 8px 8px 0', fontSize: '0.75rem', color: 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                    }}>{v.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ── Medicines table ─────────────────────────────────── */}
@@ -719,6 +758,21 @@ export default function Prescription() {
             {pd.diagnosis && <div style={{ marginTop: '6px', color: '#059669' }}><strong>Diagnosis:</strong> {pd.diagnosis}</div>}
             {pd.symptoms  && <div style={{ marginTop: '4px' }}><strong>Symptoms:</strong> {pd.symptoms}</div>}
           </div>
+
+          {/* Vitals in preview */}
+          {Object.values(vitals).some(v => v.trim()) && (() => {
+            const vitalLabels = { bp: 'BP', pulse: 'Pulse', o2: 'O₂ Sat', weight: 'Weight', sugar: 'Sugar', temperature: 'Temp' };
+            const vitalUnits  = { bp: 'mmHg', pulse: 'bpm', o2: '%', weight: 'kg', sugar: 'mg/dL', temperature: '°F' };
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                {Object.entries(vitals).filter(([, v]) => v.trim()).map(([key, val]) => (
+                  <div key={key} style={{ fontSize: '0.78rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '3px 10px', color: '#065f46' }}>
+                    <span style={{ fontWeight: 600 }}>{vitalLabels[key]}:</span> {val} {vitalUnits[key]}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Medicines */}
           <div style={{ color: '#059669', borderBottom: '1px solid #059669', display: 'inline-block', fontWeight: 700, fontSize: '0.95rem', marginBottom: '10px' }}>
