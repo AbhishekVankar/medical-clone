@@ -911,6 +911,43 @@ select.input-field {
   font-weight: 600;
 }
 
+/* Custom (user-added) reaction chip — teal tint to distinguish from preset */
+.reaction-chip.custom {
+  border-style: dashed;
+}
+.reaction-chip.custom.selected {
+  background: rgba(13,148,136,0.12);
+  border-color: #0d9488;
+  color: #0f766e;
+}
+.reaction-chip.custom:not(.selected) {
+  border-color: #5eead4;
+  color: #0f766e;
+}
+.reaction-chip.custom:hover {
+  border-color: #0d9488;
+  color: #0f766e;
+  background: rgba(13,148,136,0.08);
+}
+
+/* ── Add custom reaction row ─────────────────────────────── */
+.reaction-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #fde68a;
+}
+
+.reaction-add-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  font-size: 0.82rem;
+  padding: 0 10px;
+}
+
 /* ── Lab Reports ──────────────────────────────────────────── */
 .lab-add-row {
   display: flex;

@@ -85,7 +85,8 @@ export default function Prescription() {
     name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '', symptoms: '',
   });
 
-  const [medicines, setMedicines]      = useState([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [] }]);
+  const [medicines, setMedicines]      = useState([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [], customReactions: [] }]);
+  const [customReactionInputs, setCustomReactionInputs] = useState({});
   const [pathya,    setPathya]         = useState('');
   const [apathya,   setApathya]       = useState('');
   const [notes,     setNotes]         = useState('');
@@ -154,7 +155,7 @@ export default function Prescription() {
   // ── Medicine row helpers ──────────────────────────────────────────────────
   const addMedicineRow = (medType = 'allopathy') => {
     const newId = medicines.length > 0 ? Math.max(...medicines.map(m => m.id)) + 1 : 1;
-    setMedicines(prev => [...prev, { id: newId, name: '', medType, timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [] }]);
+    setMedicines(prev => [...prev, { id: newId, name: '', medType, timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [], customReactions: [] }]);
   };
 
   const removeMedicineRow = (id) => setMedicines(prev => prev.filter(m => m.id !== id));
@@ -180,6 +181,24 @@ export default function Prescription() {
           : [...sel, reaction],
       };
     }));
+  };
+
+  const addCustomReaction = (medId) => {
+    const text = (customReactionInputs[medId] || '').trim();
+    if (!text) return;
+    setMedicines(prev => prev.map(m => {
+      if (m.id !== medId) return m;
+      const alreadyExists = [...(m.customReactions ?? []), ...(getSideEffects(m.name))].some(
+        r => r.toLowerCase() === text.toLowerCase()
+      );
+      if (alreadyExists) return m;
+      return {
+        ...m,
+        customReactions: [...(m.customReactions ?? []), text],
+        selectedReactions: [...(m.selectedReactions ?? []), text],
+      };
+    }));
+    setCustomReactionInputs(prev => ({ ...prev, [medId]: '' }));
   };
 
   // ── Lab report helpers ───────────────────────────────────────────────────
@@ -242,7 +261,8 @@ export default function Prescription() {
     showConfirm('New Prescription', 'Start a new prescription? Current data will be lost.', () => {
       closeModal();
       setPatientData({ name: '', age: '', gender: 'Male', phone: '', address: '', diagnosis: '', symptoms: '' });
-      setMedicines([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [] }]);
+      setMedicines([{ id: 1, name: '', medType: 'allopathy', timing: '', anupan: '', days: 7, dose: '', doseUnit: 'mg', selectedReactions: [], customReactions: [] }]);
+      setCustomReactionInputs({});
       setPathya(''); setApathya(''); setNotes('');
       setLabReports([]); setSelectedLabType(''); setLabNote('');
     });
@@ -274,32 +294,44 @@ export default function Prescription() {
     try {
       const filename = `${patientData.name || 'Prescription'}.pdf`;
 
-      // Download the PDF
       const blob = await html2pdf()
         .set(pdfOptions)
         .from(document.getElementById('prescription-preview'))
         .outputPdf('blob');
 
-      const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href     = url;
-      a.download = filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-      // Open direct WhatsApp chat with patient's number
+      const file = new File([blob], filename, { type: 'application/pdf' });
       const phone = digits.startsWith('91') ? digits : `91${digits}`;
-      const text  = encodeURIComponent(`Prescription for ${patientData.name || 'patient'} — please find the PDF attached.`);
-      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+      const shareText = `Prescription for ${patientData.name || 'patient'}`;
 
-      showAlert(
-        'PDF Downloaded',
-        'The prescription PDF has been downloaded. Please attach it in the WhatsApp chat that just opened.',
-        'info'
-      );
+      // On mobile browsers (Android/iOS) the Web Share API supports files —
+      // the OS share sheet lets the user pick WhatsApp and the PDF is attached.
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: shareText });
+      } else {
+        // Desktop fallback: download the PDF then open the WhatsApp chat.
+        // The user attaches the file manually in the chat that opens.
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href     = url;
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+        const text = encodeURIComponent(`${shareText} — please find the PDF attached.`);
+        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+
+        showAlert(
+          'PDF Downloaded',
+          'The prescription PDF has been saved to your device. Please attach it in the WhatsApp chat that just opened.',
+          'info'
+        );
+      }
     } catch (err) {
-      console.error(err);
-      showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
+      // User cancelling the share sheet throws AbortError — not a real error
+      if (err.name !== 'AbortError') {
+        console.error(err);
+        showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
+      }
     } finally {
       setWaLoading(false);
     }
@@ -315,8 +347,8 @@ export default function Prescription() {
 
   const pd = patientData;
 
-  // Medicines that have a name and have side effects available
-  const medicinesWithEffects = medicines.filter(m => m.name.trim() && getSideEffects(m.name).length > 0);
+  // All medicines that have a name — doctor can always add custom reactions
+  const medicinesWithEffects = medicines.filter(m => m.name.trim());
 
   return (
     <div className="layout-rx animate-fade-in">
@@ -418,7 +450,7 @@ export default function Prescription() {
                 </thead>
                 <tbody>
                   {medicines.map(med => (
-                    <tr key={med.id}>
+                    <tr key={med.id} style={{ verticalAlign: 'bottom' }}>
                       <td data-label="Medicine">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -458,7 +490,8 @@ export default function Prescription() {
                       </td>
                       <td data-label="Days">
                         <input type="number" className="input-field" value={med.days}
-                          onChange={e => updateMedicineField(med.id, 'days', e.target.value)} />
+                          onChange={e => updateMedicineField(med.id, 'days', e.target.value)}
+                          style={{ minWidth: '64px', width: '64px' }} />
                       </td>
                       <td data-label="Dose">
                         <div style={{ display: 'flex', gap: '4px' }}>
@@ -511,12 +544,14 @@ export default function Prescription() {
                   <Zap size={18} color="var(--warning, #d97706)" />
                   <span style={{ color: 'var(--warning, #d97706)' }}>Drug Reactions / Side Effects</span>
                 </h3>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Select reactions observed</span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Select or add reactions observed</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {medicinesWithEffects.map(med => {
-                  const effects = getSideEffects(med.name);
+                  const presetEffects = getSideEffects(med.name);
+                  const customEffects = med.customReactions ?? [];
+                  const allEffects = [...presetEffects, ...customEffects.filter(c => !presetEffects.includes(c))];
                   return (
                     <div key={med.id} className="drug-reaction-card">
                       <div className="drug-reaction-header">
@@ -525,17 +560,40 @@ export default function Prescription() {
                           <span className="drug-reaction-count">{med.selectedReactions.length} selected</span>
                         )}
                       </div>
-                      <div className="reaction-chips">
-                        {effects.map(effect => (
-                          <button
-                            key={effect}
-                            type="button"
-                            className={`reaction-chip${med.selectedReactions.includes(effect) ? ' selected' : ''}`}
-                            onClick={() => toggleReaction(med.id, effect)}
-                          >
-                            {effect}
-                          </button>
-                        ))}
+
+                      {allEffects.length > 0 && (
+                        <div className="reaction-chips">
+                          {allEffects.map(effect => (
+                            <button
+                              key={effect}
+                              type="button"
+                              className={`reaction-chip${med.selectedReactions.includes(effect) ? ' selected' : ''}${customEffects.includes(effect) ? ' custom' : ''}`}
+                              onClick={() => toggleReaction(med.id, effect)}
+                            >
+                              {effect}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* ── Add custom reaction ── */}
+                      <div className="reaction-add-row">
+                        <input
+                          type="text"
+                          className="input-field reaction-add-input"
+                          placeholder="Add a reaction…"
+                          value={customReactionInputs[med.id] || ''}
+                          onChange={e => setCustomReactionInputs(prev => ({ ...prev, [med.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomReaction(med.id); }}}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => addCustomReaction(med.id)}
+                          disabled={!(customReactionInputs[med.id] || '').trim()}
+                        >
+                          <Plus size={14} /> Add
+                        </button>
                       </div>
                     </div>
                   );
@@ -636,13 +694,17 @@ export default function Prescription() {
           style={{ flex: 1, background: '#fff', color: '#111', padding: '28px', overflowY: 'auto' }}>
 
           {/* Clinic header */}
-          <div style={{ borderBottom: '2px solid #059669', paddingBottom: '14px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ borderBottom: '2px solid #059669', paddingBottom: '14px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <h2 style={{ color: '#059669', margin: 0, fontSize: '1.1rem' }}>Sanjivani Clinic</h2>
               <div style={{ fontSize: '0.85rem', color: '#333', fontWeight: 'bold', marginTop: '2px' }}>Dr. Dharmesh C. Sapovadiya</div>
-              <div style={{ fontSize: '0.75rem', color: '#666' }}>Qualification: B.A.M.S.</div>
+              <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '1px' }}>BAMS</div>
             </div>
-            <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '0.85rem' }}>SC</div>
+            <div style={{ textAlign: 'right', fontSize: '0.72rem', color: '#555', lineHeight: 1.7 }}>
+              <div>9426932694</div>
+              <div>9:30 AM – 1:30 PM</div>
+              <div>5:00 PM – 9:30 PM</div>
+            </div>
           </div>
 
           {/* Patient info */}
@@ -709,6 +771,16 @@ export default function Prescription() {
               {notes   && <div style={{ fontStyle: 'italic' }}><strong>Notes:</strong> {notes}</div>}
             </div>
           )}
+
+          {/* Signature block */}
+          <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ textAlign: 'center', minWidth: '160px' }}>
+              <div style={{ borderTop: '1px solid #333', paddingTop: '6px', fontSize: '0.78rem', color: '#333', fontWeight: 600 }}>
+                Dr. Dharmesh C. Sapovadiya
+              </div>
+              <div style={{ fontSize: '0.7rem', color: '#666' }}>BAMS</div>
+            </div>
+          </div>
         </div>
 
         {/* Action buttons */}
