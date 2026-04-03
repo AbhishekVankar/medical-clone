@@ -430,31 +430,24 @@ export default function Prescription() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
               {[
-                { label: 'BP',          key: 'bp',          placeholder: 'e.g. 120/80',  unit: 'mmHg' },
-                { label: 'Pulse',       key: 'pulse',       placeholder: 'e.g. 72',       unit: 'bpm'  },
-                { label: 'O₂ Sat',      key: 'o2',          placeholder: 'e.g. 98',       unit: '%'    },
-                { label: 'Weight',      key: 'weight',      placeholder: 'e.g. 65',       unit: 'kg'   },
-                { label: 'Sugar',       key: 'sugar',       placeholder: 'e.g. 110',      unit: 'mg/dL'},
-                { label: 'Temperature', key: 'temperature', placeholder: 'e.g. 98.6',     unit: '°F'   },
+                { label: 'BP',          key: 'bp',          placeholder: '120/80',  unit: 'mmHg' },
+                { label: 'Pulse',       key: 'pulse',       placeholder: '72',      unit: 'bpm'  },
+                { label: 'O₂ Sat',      key: 'o2',          placeholder: '98',      unit: '%'    },
+                { label: 'Weight',      key: 'weight',      placeholder: '65',      unit: 'kg'   },
+                { label: 'Sugar',       key: 'sugar',       placeholder: '110',     unit: 'mg/dL'},
+                { label: 'Temperature', key: 'temperature', placeholder: '98.6',    unit: '°F'   },
               ].map(v => (
                 <div key={v.key} className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">{v.label}</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder={v.placeholder}
-                      value={vitals[v.key]}
-                      onChange={e => setVitals(prev => ({ ...prev, [v.key]: e.target.value }))}
-                      style={{ borderRadius: '8px 0 0 8px', borderRight: 'none', flex: 1, minWidth: 0 }}
-                    />
-                    <span style={{
-                      padding: '0 8px', height: '42px', display: 'flex', alignItems: 'center',
-                      background: 'var(--bg-muted)', border: '1.5px solid #cbd5e1', borderLeft: 'none',
-                      borderRadius: '0 8px 8px 0', fontSize: '0.75rem', color: 'var(--text-muted)',
-                      whiteSpace: 'nowrap',
-                    }}>{v.unit}</span>
-                  </div>
+                  <label className="input-label">
+                    {v.label} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({v.unit})</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder={v.placeholder}
+                    value={vitals[v.key]}
+                    onChange={e => setVitals(prev => ({ ...prev, [v.key]: e.target.value }))}
+                  />
                 </div>
               ))}
             </div>

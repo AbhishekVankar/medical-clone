@@ -288,6 +288,142 @@ const DISEASES = [
   'Yellow Fever',
   "Wilson's disease",
   'Worms',
+
+  // ── Therapeutic Index additions ────────────────────────────────────────
+  // A
+  'Abortion (habitual, threatened)',
+  'Acidosis',
+  'Acne',
+  'Alkalosis',
+  'Allergy',
+  'Alopecia',
+  'Angina',
+  'Anxiety',
+  'Appendicitis',
+  'Arthritis',
+  'Ascariasis',
+  'Ascites',
+  'Asthma',
+  'Autoimmune diseases',
+  'Azoospermia',
+  // B
+  'Balanitis',
+  'Beriberi',
+  'BPH (Benign Prostatic Hyperplasia)',
+  'Bitot spots',
+  'Bone loss',
+  'Breathlessness',
+  'Burns',
+  // C
+  'Calcium metabolism disorders',
+  'Cardiac arrest',
+  'Cataract',
+  'Cellulitis',
+  'Cerebral edema',
+  'Cerebrovascular accident',
+  'Cervical discharge',
+  'Chancroid',
+  'Chickenpox (Varicella)',
+  // D
+  'Dacryocystitis',
+  'Deafness',
+  'Deficiency disorders',
+  'Dermatitis',
+  'Diabetes',
+  'Drug eruption',
+  'Dysentery',
+  'Dysmenorrhea',
+  // E
+  'Ear infections',
+  'Eclampsia',
+  'Encephalitis',
+  'Epistaxis',
+  'Erectile dysfunction',
+  // F
+  'Fistula',
+  'Fungal infections',
+  // G
+  'G-6-PD deficiency',
+  'Goitre',
+  'Growth retardation',
+  'Guillain-Barré syndrome',
+  'Gynecomastia',
+  // H
+  'Hallucination',
+  'Headache',
+  'Hematuria',
+  'Hemoptysis',
+  'Herpes',
+  'Hydatid disease',
+  'Hypertension',
+  'Hypomania',
+  'Hypopituitarism',
+  'Hypoproteinemia',
+  // I
+  'Ichthyosis',
+  'Intraocular pressure',
+  'Irritable (spastic) colon',
+  // K
+  'Keratoplasty',
+  // L
+  'Labour',
+  'Leucorrhoea',
+  'Lichen',
+  'Liver abscess',
+  'Lumbago',
+  // M
+  'Malabsorption',
+  'Mania',
+  'Mastitis',
+  'Melena',
+  'Meningitis',
+  'Mongolism',
+  'MTP',
+  'Mumps',
+  // N
+  'Neonatal jaundice',
+  'Neoplasm',
+  'Nephrotic syndrome',
+  'Night blindness',
+  'Nocturia',
+  // O
+  'Oligospermia',
+  'Optic neuritis',
+  'Oral thrush',
+  'Otomycosis',
+  'Ovulation',
+  // P
+  'Pediculosis',
+  'Pelvic inflammatory disease',
+  'Peritonitis',
+  'Pertussis',
+  'Plague',
+  'Pleurisy',
+  'Poliomyelitis',
+  // R
+  'Rh – VE mother',
+  'Rhinitis',
+  // S
+  'Sexually transmitted diseases',
+  'Shock',
+  'Snake bite',
+  'Stye',
+  // T
+  'Tendinitis',
+  'Tinea infestations',
+  'Toxoplasmosis',
+  // U
+  'Uterine inertia',
+  // V
+  'Varicose vein',
+  // W
+  'Warts',
+  'Wolff-Parkinson-White syndrome',
+  'Worm infestations',
+  // X
+  'Xerophthalmia',
+  // Z
+  'Zollinger-Ellison syndrome',
 ];
 
 export async function seedDiseases(force = false) {
