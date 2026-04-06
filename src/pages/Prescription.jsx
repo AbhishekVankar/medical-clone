@@ -77,6 +77,7 @@ const LAB_REPORT_TYPES = [
 export default function Prescription() {
   const [loading, setLoading]           = useState(false);
   const [whatsappLoading, setWaLoading] = useState(false);
+  const [saved, setSaved]               = useState(false);
   const [modalConfig, setModalConfig] = useState({
     isOpen: false, title: '', message: '', type: 'info', onConfirm: null, showConfirm: false,
   });
@@ -246,7 +247,7 @@ export default function Prescription() {
             labReports,
           });
 
-          showAlert('Saved', `Prescription saved for ${patient.name}`, 'success');
+          setSaved(true);
         } catch (err) {
           console.error(err);
           showAlert('Error', err.message || 'Failed to save prescription', 'danger');
@@ -267,6 +268,7 @@ export default function Prescription() {
       setCustomReactionInputs({});
       setPathya(''); setApathya(''); setNotes('');
       setLabReports([]); setSelectedLabType(''); setLabNote('');
+      setSaved(false);
     });
   };
 
@@ -811,6 +813,34 @@ export default function Prescription() {
             </div>
           </div>
         </div>
+
+        {/* Saved banner */}
+        {saved && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            padding: '12px 16px',
+            background: '#f0fdf4',
+            border: '1.5px solid #bbf7d0',
+            borderRadius: '10px',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            color: '#15803d',
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle size={16} /> Prescription saved — download your PDF now
+            </span>
+            <button
+              className="btn btn-primary"
+              style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+              onClick={handleDownload}
+            >
+              <Download size={14} /> Download PDF
+            </button>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="glass-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
