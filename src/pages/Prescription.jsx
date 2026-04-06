@@ -301,39 +301,21 @@ export default function Prescription() {
         .from(document.getElementById('prescription-preview'))
         .outputPdf('blob');
 
-      const file = new File([blob], filename, { type: 'application/pdf' });
+      // Download the PDF
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      // Open patient's WhatsApp chat
       const phone = digits.startsWith('91') ? digits : `91${digits}`;
-      const shareText = `Prescription for ${patientData.name || 'patient'}`;
-
-      // On mobile browsers (Android/iOS) the Web Share API supports files —
-      // the OS share sheet lets the user pick WhatsApp and the PDF is attached.
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: shareText });
-      } else {
-        // Desktop fallback: download the PDF then open the WhatsApp chat.
-        // The user attaches the file manually in the chat that opens.
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href     = url;
-        a.download = filename;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-        const text = encodeURIComponent(`${shareText} — please find the PDF attached.`);
-        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-
-        showAlert(
-          'PDF Downloaded',
-          'The prescription PDF has been saved to your device. Please attach it in the WhatsApp chat that just opened.',
-          'info'
-        );
-      }
+      const text  = encodeURIComponent(`Prescription for ${patientData.name || 'patient'}`);
+      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
     } catch (err) {
-      // User cancelling the share sheet throws AbortError — not a real error
-      if (err.name !== 'AbortError') {
-        console.error(err);
-        showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
-      }
+      console.error(err);
+      showAlert('Error', err.message || 'Failed to generate PDF.', 'danger');
     } finally {
       setWaLoading(false);
     }
