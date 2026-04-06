@@ -281,9 +281,20 @@ export default function Prescription() {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
   };
 
+  // Temporarily expand the preview so html2pdf captures all content (including lab reports
+  // that may be scrolled out of the visible area due to overflowY: 'auto').
+  function withFullHeight(fn) {
+    const el = document.getElementById('prescription-preview');
+    const prev = el.style.overflowY;
+    el.style.overflowY = 'visible';
+    return Promise.resolve(fn(el)).finally(() => {
+      el.style.overflowY = prev;
+    });
+  }
+
   // ── Download PDF ─────────────────────────────────────────────────────────
   const handleDownload = () => {
-    html2pdf().set(pdfOptions).from(document.getElementById('prescription-preview')).save();
+    withFullHeight(el => html2pdf().set(pdfOptions).from(el).save());
   };
 
   // ── Send via WhatsApp ────────────────────────────────────────────────────
@@ -298,10 +309,9 @@ export default function Prescription() {
     try {
       const filename = `${patientData.name || 'Prescription'}.pdf`;
 
-      const blob = await html2pdf()
-        .set(pdfOptions)
-        .from(document.getElementById('prescription-preview'))
-        .outputPdf('blob');
+      const blob = await withFullHeight(el =>
+        html2pdf().set(pdfOptions).from(el).outputPdf('blob')
+      );
 
       // Download the PDF
       const url = URL.createObjectURL(blob);
