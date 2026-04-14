@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import QRCode from 'qrcode';
 import { Save, Send, Pill, Plus, X, Loader2, Download, AlertCircle, CheckCircle, HelpCircle, FlaskConical, Zap, Leaf } from 'lucide-react';
 import CreatableSelect from 'react-select/creatable';
 import html2pdf from 'html2pdf.js';
@@ -98,6 +99,13 @@ export default function Prescription() {
   // Lab Reports state
   const [labReports, setLabReports]       = useState([]);
   const [selectedLabType, setSelectedLabType] = useState('');
+  const [clinicQR, setClinicQR] = useState('');
+
+  useEffect(() => {
+    QRCode.toDataURL('https://maps.app.goo.gl/e7QHV1h9h4bNe3cM9', { width: 80, margin: 1 })
+      .then(url => setClinicQR(url))
+      .catch(() => {});
+  }, []);
   const [labNote, setLabNote]             = useState('');
 
   // Pre-load medicines and diseases once
@@ -383,7 +391,7 @@ export default function Prescription() {
             </div>
           </div>
 
-          {/* Patient info – row 2 */}
+          {/* Address + Symptoms – half width each on large screens */}
           <div className="rx-two-col">
             <div className="input-group">
               <label className="input-label">Address</label>
@@ -391,30 +399,30 @@ export default function Prescription() {
                 value={pd.address} onChange={e => setPatientData({ ...pd, address: e.target.value })} />
             </div>
             <div className="input-group">
-              <label className="input-label">Disease / Diagnosis</label>
-              <CreatableSelect
-                styles={rxSelectStyles}
-                options={diseaseOptions}
-                value={pd.diagnosis ? { value: pd.diagnosis, label: pd.diagnosis } : null}
-                onChange={opt => setPatientData({ ...pd, diagnosis: opt ? opt.value : '' })}
-                onCreateOption={async (name) => {
-                  const entry = await addDisease(name);
-                  setAllDiseases(prev => [...prev, entry].sort((a, b) => a.name.localeCompare(b.name)));
-                  setPatientData({ ...pd, diagnosis: entry.name });
-                }}
-                formatCreateLabel={(val) => `Add "${val}" as new disease`}
-                placeholder="e.g. Amlapitta"
-                isClearable
-                isSearchable
-              />
+              <label className="input-label">Symptoms</label>
+              <input type="text" className="input-field" placeholder="e.g. Headache, fever, nausea, stomach pain…"
+                value={pd.symptoms} onChange={e => setPatientData({ ...pd, symptoms: e.target.value })} />
             </div>
           </div>
 
-          {/* Symptoms */}
+          {/* Disease / Diagnosis */}
           <div className="input-group">
-            <label className="input-label">Symptoms</label>
-            <textarea className="input-field" rows={2} placeholder="e.g. Headache, fever, nausea, stomach pain…"
-              value={pd.symptoms} onChange={e => setPatientData({ ...pd, symptoms: e.target.value })} />
+            <label className="input-label">Disease / Diagnosis</label>
+            <CreatableSelect
+              styles={rxSelectStyles}
+              options={diseaseOptions}
+              value={pd.diagnosis ? { value: pd.diagnosis, label: pd.diagnosis } : null}
+              onChange={opt => setPatientData({ ...pd, diagnosis: opt ? opt.value : '' })}
+              onCreateOption={async (name) => {
+                const entry = await addDisease(name);
+                setAllDiseases(prev => [...prev, entry].sort((a, b) => a.name.localeCompare(b.name)));
+                setPatientData({ ...pd, diagnosis: entry.name });
+              }}
+              formatCreateLabel={(val) => `Add "${val}" as new disease`}
+              placeholder="e.g. Amlapitta"
+              isClearable
+              isSearchable
+            />
           </div>
 
           {/* ── Vitals ──────────────────────────────────────────── */}
@@ -814,7 +822,15 @@ export default function Prescription() {
           )}
 
           {/* Signature block */}
-          <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            {clinicQR && (
+              <div style={{ textAlign: 'center' }}>
+                <a href="https://maps.app.goo.gl/e7QHV1h9h4bNe3cM9" target="_blank" rel="noopener noreferrer">
+                  <img src={clinicQR} alt="Clinic Location QR" style={{ width: '60px', height: '60px', display: 'block', cursor: 'pointer' }} />
+                </a>
+                <div style={{ fontSize: '0.6rem', color: '#777', marginTop: '2px' }}>Locate Us</div>
+              </div>
+            )}
             <div style={{ textAlign: 'center', minWidth: '160px' }}>
               <div style={{ borderTop: '1px solid #333', paddingTop: '6px', fontSize: '0.78rem', color: '#333', fontWeight: 600 }}>
                 Dr. Dharmesh C. Sapovadiya
